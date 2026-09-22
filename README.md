@@ -1,4 +1,4 @@
-# bazar_usu
+# inilah USU~
 
 A new Flutter project.
 
