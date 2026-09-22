@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'fitur_AI.dart'; // sesuaikan path kalau file ini di folder berbeda
+import 'fitur_AI.dart';
+import 'chat_list_page.dart'; // sesuaikan path kalau file ini di folder berbeda
 
 const kDarkGreen = Color(0xFF3E5C3A);
 const kLightGreen = Color(0xFFE8F0DE);
@@ -506,7 +507,7 @@ class _BottomNavBar extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ChatListPage()),
+                  MaterialPageRoute(builder: (_) => ChatListPage()),
                 );
               },
               child: Icon(
