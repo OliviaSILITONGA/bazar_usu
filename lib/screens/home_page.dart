@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'login_screen.dart';
+import 'register_screen.dart';
+
 // Warna-warna utama yang dipakai berulang di halaman ini
 const Color kDarkGreen = Color(0xFF3E5C3A);
 const Color kLightGreen = Color(0xFFE8F0DE);
@@ -83,9 +86,27 @@ class _TopNavBar extends StatelessWidget {
               ),
             ),
           ),
-          _NavButton(label: 'Login', filled: false, onPressed: () {}),
+          _NavButton(
+            label: 'Login',
+            filled: false,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+          ),
           const SizedBox(width: 8),
-          _NavButton(label: 'Daftar', filled: true, onPressed: () {}),
+          _NavButton(
+            label: 'Daftar',
+            filled: true,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RegisterPage()),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -223,7 +244,12 @@ class _ActionButtons extends StatelessWidget {
         children: [
           Expanded(
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterPage()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDarkGreen,
                 foregroundColor: Colors.white,
@@ -238,7 +264,12 @@ class _ActionButtons extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterPage()),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: kDarkGreen,
                 side: const BorderSide(color: kDarkGreen),
