@@ -502,10 +502,18 @@ class _BottomNavBar extends StatelessWidget {
               color: kDarkGreen.withValues(alpha: 0.5),
               size: 24,
             ),
-            Icon(
-              Icons.chat_bubble_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 24,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ChatListPage()),
+                );
+              },
+              child: Icon(
+                Icons.chat_bubble_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
             ),
             Icon(
               Icons.person_outline,
