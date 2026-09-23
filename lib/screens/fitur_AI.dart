@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'chat_list_page.dart';
+import 'orders_page.dart';
+import 'profile_page.dart';
+
 import '../constants.dart';
 
 class FiturAI extends StatefulWidget {
@@ -396,30 +400,61 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Icon(Icons.home, color: kDarkGreen.withValues(alpha: 0.5), size: 26),
-          Icon(
-            Icons.receipt_long_outlined,
-            color: kDarkGreen.withValues(alpha: 0.5),
-            size: 24,
-          ),
-          Icon(Icons.chat_bubble_outline, color: kDarkGreen, size: 24),
-          Icon(
-            Icons.person_outline,
-            color: kDarkGreen.withValues(alpha: 0.5),
-            size: 26,
-          ),
-        ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Icon(Icons.home, color: kDarkGreen, size: 26),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OrdersPage()),
+                );
+              },
+              child: Icon(
+                Icons.receipt_long_outlined,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ChatListPage()),
+                );
+              },
+              child: Icon(
+                Icons.chat_bubble_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+              child: Icon(
+                Icons.person_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 26,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

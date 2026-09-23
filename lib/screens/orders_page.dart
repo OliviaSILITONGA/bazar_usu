@@ -215,9 +215,9 @@ class _BottomNavBar extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const OrdersPage()),
                 );
               },
-              child: Icon(
+              child: const Icon(
                 Icons.receipt_long_outlined,
-                color: kDarkGreen.withValues(alpha: 0.5),
+                color: kDarkGreen,
                 size: 24,
               ),
             ),

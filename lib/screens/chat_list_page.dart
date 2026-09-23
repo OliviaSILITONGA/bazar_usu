@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
-
 import 'orders_page.dart';
 import 'profile_page.dart';
 import 'chat_detail_page.dart';
@@ -98,6 +96,8 @@ class ChatListPage extends StatelessWidget {
           ],
         ),
       ),
+      // --- DITAMBAHKAN DI SINI ---
+      bottomNavigationBar: const _BottomNavBar(),
     );
   }
 }
@@ -229,6 +229,15 @@ class _BottomNavBar extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
+                  MaterialPageRoute(builder: (_) => const ChatListPage()),
+                );
+              },
+              child: const Icon(Icons.chat_bubble, color: kDarkGreen, size: 24),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
                   MaterialPageRoute(builder: (_) => const ProfilePage()),
                 );
               },
@@ -236,19 +245,6 @@ class _BottomNavBar extends StatelessWidget {
                 Icons.person_outline,
                 color: kDarkGreen.withValues(alpha: 0.5),
                 size: 26,
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ChatListPage()),
-                );
-              },
-              child: Icon(
-                Icons.chat_bubble_outline,
-                color: kDarkGreen.withValues(alpha: 0.5),
-                size: 24,
               ),
             ),
           ],
