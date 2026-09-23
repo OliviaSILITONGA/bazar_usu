@@ -55,12 +55,14 @@ class AuthField extends StatelessWidget {
   final String label;
   final bool obscure;
   final TextInputType? keyboardType;
+  final TextEditingController? controller; // Tambahkan controller di sini
 
   const AuthField({
     super.key,
     required this.label,
     this.obscure = false,
     this.keyboardType,
+    this.controller, // Tambahkan ke constructor
   });
 
   OutlineInputBorder _border(double width) => OutlineInputBorder(
@@ -83,6 +85,7 @@ class AuthField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: controller, // Sambungkan ke TextField
           obscureText: obscure,
           keyboardType: keyboardType,
           decoration: InputDecoration(

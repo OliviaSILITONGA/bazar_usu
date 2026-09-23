@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import 'login_screen.dart';
+import 'seller_verification_page.dart';
+import 'manage_users_page.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
@@ -65,13 +67,25 @@ class AdminDashboardPage extends StatelessWidget {
               subtitle: '3 toko mahasiswa menunggu persetujuan',
               icon: Icons.verified_user_outlined,
               badgeCount: 3,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SellerVerificationPage(),
+                  ),
+                );
+              },
             ),
             _buildAdminTile(
               title: 'Kelola Data Pengguna',
               subtitle: 'Lihat, nonaktifkan, atau atur peran akun',
               icon: Icons.manage_accounts_outlined,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManageUsersPage()),
+                );
+              },
             ),
             _buildAdminTile(
               title: 'Kelola Lapak Bazar & Kategori',
