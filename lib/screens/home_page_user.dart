@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../constants.dart';
 import 'fitur_AI.dart';
-import 'chat_list_page.dart'; // sesuaikan path kalau file ini di folder berbeda
-
-const kDarkGreen = Color(0xFF3E5C3A);
-const kLightGreen = Color(0xFFE8F0DE);
-const kBg = Color(0xFFF3F8ED);
+import 'chat_list_page.dart';
+import 'orders_page.dart';
+import 'profile_page.dart';
+import 'notification_page.dart';
+import 'cart_page.dart';
 
 class HomePageUser extends StatefulWidget {
   const HomePageUser({super.key});
@@ -44,6 +45,10 @@ class _HomePageUserState extends State<HomePageUser> {
                   const _SectionTitle(title: 'Produk Favorite'),
                   const SizedBox(height: 12),
                   const _FavoriteGrid(),
+                  const SizedBox(height: 24),
+                  const _SectionTitle(title: 'Bazar Favorit'),
+                  const SizedBox(height: 14),
+                  const _PopularStoresRow(),
                   const SizedBox(height: 100), // ruang untuk bottom nav
                 ],
               ),
@@ -52,7 +57,7 @@ class _HomePageUserState extends State<HomePageUser> {
           // Tombol bulat AI di pojok kanan bawah
           Positioned(
             right: 16,
-            bottom: 80, // di atas bottom nav bar
+            bottom: 80,
             child: _AIButton(
               onTap: () {
                 Navigator.push(
@@ -76,6 +81,10 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Contoh jumlah item keranjang & notifikasi (statis, ganti dengan data asli nanti)
+    const int cartCount = 2;
+    const int notifCount = 1;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -111,10 +120,74 @@ class _SearchBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Icon(Icons.shopping_cart_outlined, color: kDarkGreen, size: 26),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => NotificationPage()),
+              );
+            },
+            child: _IconWithBadge(
+              icon: Icons.notifications_none,
+              count: notifCount,
+            ),
+          ),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => CartPage()),
+              );
+            },
+            child: _IconWithBadge(
+              icon: Icons.shopping_cart_outlined,
+              count: cartCount,
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+// Ikon dengan badge angka, badge hanya tampil kalau count > 0
+class _IconWithBadge extends StatelessWidget {
+  final IconData icon;
+  final int count;
+
+  const _IconWithBadge({required this.icon, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon, color: kDarkGreen, size: 26),
+        if (count > 0)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 17),
+              decoration: const BoxDecoration(
+                color: Colors.redAccent,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -223,8 +296,6 @@ class _PromoCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: kDarkGreen.withValues(alpha: 0.6),
-        // Kalau sudah punya gambar produk, tambahkan:
-        // image: const DecorationImage(image: AssetImage('assets/images/xxx.jpg'), fit: BoxFit.cover),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -322,16 +393,10 @@ class _FavoriteGrid extends StatelessWidget {
       price: 'Rp 5.000',
       seller: 'Kedai Kak Wati',
     ),
-    _ProductData(
-      name: 'Donat Aneka Rasa',
-      price: 'Rp 3.000',
-      seller: 'Toko Roti',
-    ),
-    _ProductData(
-      name: 'Cookies Coklat',
-      price: 'Rp 4.000',
-      seller: 'Kedai Snack',
-    ),
+    _ProductData(name: 'Donat', price: 'Rp 4.000', seller: 'Kedai ciau'),
+    _ProductData(name: 'Kue Kering', price: 'Rp 8.000', seller: 'Olip Bakery'),
+    _ProductData(name: 'Alat Tulis', price: 'Rp 100.000', seller: 'FKB'),
+    _ProductData(name: 'Kue Kering', price: 'Rp 8.000', seller: 'Olip Bakery'),
   ];
 
   @override
@@ -478,6 +543,75 @@ class _AIButton extends StatelessWidget {
   }
 }
 
+// ==================== BAZAR FAVORIT (TOKO POPULER) ====================
+class _PopularStoresRow extends StatelessWidget {
+  const _PopularStoresRow();
+
+  static const List<_StoreData> _stores = [
+    _StoreData(name: 'Kue Kering Tho'),
+    _StoreData(name: 'KFC'),
+    _StoreData(name: 'Ko yana'),
+    _StoreData(name: 'Kue Kering Tho'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 90,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _stores.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        itemBuilder: (context, index) => _StoreAvatar(data: _stores[index]),
+      ),
+    );
+  }
+}
+
+class _StoreData {
+  final String name;
+  const _StoreData({required this.name});
+}
+
+class _StoreAvatar extends StatelessWidget {
+  final _StoreData data;
+  const _StoreAvatar({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: kLightGreen,
+              border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
+            ),
+            child: Icon(
+              Icons.storefront_outlined,
+              color: kDarkGreen.withValues(alpha: 0.6),
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            data.name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: kDarkGreen),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ==================== BOTTOM NAV BAR ====================
 class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar();
@@ -498,10 +632,18 @@ class _BottomNavBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             Icon(Icons.home, color: kDarkGreen, size: 26),
-            Icon(
-              Icons.receipt_long_outlined,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 24,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OrdersPage()),
+                );
+              },
+              child: Icon(
+                Icons.receipt_long_outlined,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
             ),
             GestureDetector(
               onTap: () {
@@ -516,10 +658,18 @@ class _BottomNavBar extends StatelessWidget {
                 size: 24,
               ),
             ),
-            Icon(
-              Icons.person_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 26,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+              child: Icon(
+                Icons.person_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 26,
+              ),
             ),
           ],
         ),

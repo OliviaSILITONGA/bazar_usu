@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-const kDarkGreen = Color(0xFF3E5C3A);
-const kLightGreen = Color(0xFFE8F0DE);
-const kBg = Color(0xFFF3F8ED);
+import '../constants.dart';
 
 class FiturAI extends StatefulWidget {
   const FiturAI({super.key});
@@ -75,7 +73,6 @@ class _TopBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Ganti dengan logo asli: Image.asset('assets/images/logo.png', height: 40)
         const Text(
           'Bazar USU',
           style: TextStyle(
@@ -183,7 +180,7 @@ class _SearchButton extends StatelessWidget {
     return SizedBox(
       height: 46,
       child: ElevatedButton.icon(
-        onPressed: () {}, // sambungkan ke logika pencarian AI di sini nantinya
+        onPressed: () {},
         style: ElevatedButton.styleFrom(
           backgroundColor: kDarkGreen,
           foregroundColor: Colors.white,
@@ -333,7 +330,6 @@ class _ProductCard extends StatelessWidget {
                 color: kDarkGreen.withValues(alpha: 0.4),
                 size: 32,
               ),
-              // Ganti dengan Image.asset/Image.network produk asli.
             ),
           ),
           Padding(
@@ -400,37 +396,30 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+    return Container(
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Icon(Icons.home, color: kDarkGreen.withValues(alpha: 0.5), size: 26),
+          Icon(
+            Icons.receipt_long_outlined,
+            color: kDarkGreen.withValues(alpha: 0.5),
+            size: 24,
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            Icon(Icons.home, color: kDarkGreen, size: 26),
-            Icon(
-              Icons.receipt_long_outlined,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 24,
-            ),
-            Icon(
-              Icons.chat_bubble_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 24,
-            ),
-            Icon(
-              Icons.person_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 26,
-            ),
-          ],
-        ),
+          Icon(Icons.chat_bubble_outline, color: kDarkGreen, size: 24),
+          Icon(
+            Icons.person_outline,
+            color: kDarkGreen.withValues(alpha: 0.5),
+            size: 26,
+          ),
+        ],
       ),
     );
   }
