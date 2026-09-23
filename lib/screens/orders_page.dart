@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
+
+import 'chat_list_page.dart';
+import 'profile_page.dart';
+
 import '../constants.dart';
 
 class OrdersPage extends StatefulWidget {
@@ -204,16 +208,44 @@ class _BottomNavBar extends StatelessWidget {
                 size: 26,
               ),
             ),
-            Icon(Icons.receipt_long, color: kDarkGreen, size: 24),
-            Icon(
-              Icons.chat_bubble_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 24,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OrdersPage()),
+                );
+              },
+              child: Icon(
+                Icons.receipt_long_outlined,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
             ),
-            Icon(
-              Icons.person_outline,
-              color: kDarkGreen.withValues(alpha: 0.5),
-              size: 26,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ChatListPage()),
+                );
+              },
+              child: Icon(
+                Icons.chat_bubble_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+              child: Icon(
+                Icons.person_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 26,
+              ),
             ),
           ],
         ),

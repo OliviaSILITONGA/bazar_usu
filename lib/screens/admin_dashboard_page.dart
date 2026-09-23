@@ -4,6 +4,8 @@ import '../constants.dart';
 import 'login_screen.dart';
 import 'seller_verification_page.dart';
 import 'manage_users_page.dart';
+import 'manage_bazaar_page.dart';
+import 'reports_page.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
@@ -91,13 +93,23 @@ class AdminDashboardPage extends StatelessWidget {
               title: 'Kelola Lapak Bazar & Kategori',
               subtitle: 'Atur daftar spot bazar di lingkungan USU',
               icon: Icons.category_outlined,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManageBazaarPage()),
+                );
+              },
             ),
             _buildAdminTile(
               title: 'Laporan Transaksi & Pengaduan',
               subtitle: 'Pantau laporan pelanggaran atau masalah pesanan',
               icon: Icons.report_problem_outlined,
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReportsPage()),
+                );
+              },
             ),
           ],
         ),

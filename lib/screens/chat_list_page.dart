@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'chat_detail_page.dart';
 import 'package:flutter/material.dart';
+
+import 'orders_page.dart';
+import 'profile_page.dart';
+import 'chat_detail_page.dart';
+
 import '../constants.dart';
 
 class ChatItemData {
@@ -172,6 +176,79 @@ class _ChatListTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== BOTTOM NAV BAR ====================
+class _BottomNavBar extends StatelessWidget {
+  const _BottomNavBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Icon(
+                Icons.home,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 26,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OrdersPage()),
+                );
+              },
+              child: Icon(
+                Icons.receipt_long_outlined,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+              child: Icon(
+                Icons.person_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 26,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ChatListPage()),
+                );
+              },
+              child: Icon(
+                Icons.chat_bubble_outline,
+                color: kDarkGreen.withValues(alpha: 0.5),
+                size: 24,
               ),
             ),
           ],
