@@ -38,6 +38,7 @@ class ProfilePage extends StatelessWidget {
                     icon: Icons.credit_card_outlined,
                     label: 'Metode Pembayaran',
                   ),
+                  _MenuItemData(icon: Icons.star_border, label: 'Ulasan'),
                 ],
               ),
               SizedBox(height: 20),
@@ -50,6 +51,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                   _MenuItemData(icon: Icons.help_outline, label: 'Bantuan'),
                   _MenuItemData(icon: Icons.swap_horiz, label: 'Beralih Akun'),
+                  _MenuItemData(icon: Icons.flag_outlined, label: 'Laporkan'),
                   _MenuItemData(
                     icon: Icons.logout,
                     label: 'Keluar',
