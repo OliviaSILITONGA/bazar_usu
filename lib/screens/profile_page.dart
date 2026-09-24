@@ -1,11 +1,181 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../constants.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  String _name = 'Nama Pengguna';
+  File? _photoFile;
+
+  Future<void> _openEditSheet() async {
+    final nameController = TextEditingController(text: _name);
+    File? tempPhoto = _photoFile;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Edit Profil',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: kDarkGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final picked = await picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
+                        if (picked != null) {
+                          setSheetState(() => tempPhoto = File(picked.path));
+                        }
+                      },
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 44,
+                            backgroundColor: kLightGreen,
+                            backgroundImage: tempPhoto != null
+                                ? FileImage(tempPhoto!)
+                                : null,
+                            child: tempPhoto == null
+                                ? Icon(
+                                    Icons.person,
+                                    color: kDarkGreen.withValues(alpha: 0.6),
+                                    size: 44,
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: const BoxDecoration(
+                                color: kDarkGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      'Ketuk untuk ganti foto',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: kDarkGreen.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Nama Pengguna',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: kDarkGreen.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: kDarkGreen,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _name = nameController.text.trim().isEmpty
+                              ? _name
+                              : nameController.text.trim();
+                          _photoFile = tempPhoto;
+                        });
+                        Navigator.pop(sheetContext);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDarkGreen,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      child: const Text(
+                        'Simpan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,11 +185,15 @@ class ProfilePage extends StatelessWidget {
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
-              SizedBox(height: 16),
-              _ProfileHeader(),
-              SizedBox(height: 24),
-              _MenuSection(
+            children: [
+              const SizedBox(height: 16),
+              _ProfileHeader(
+                name: _name,
+                photoFile: _photoFile,
+                onEditTap: _openEditSheet,
+              ),
+              const SizedBox(height: 24),
+              const _MenuSection(
                 title: 'Akun',
                 items: [
                   _MenuItemData(
@@ -41,8 +215,8 @@ class ProfilePage extends StatelessWidget {
                   _MenuItemData(icon: Icons.star_border, label: 'Ulasan'),
                 ],
               ),
-              SizedBox(height: 20),
-              _MenuSection(
+              const SizedBox(height: 20),
+              const _MenuSection(
                 title: 'Lainnya',
                 items: [
                   _MenuItemData(
@@ -59,7 +233,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: 100),
+              const SizedBox(height: 100),
             ],
           ),
         ),
@@ -71,7 +245,15 @@ class ProfilePage extends StatelessWidget {
 
 // ==================== HEADER PROFIL ====================
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader();
+  final String name;
+  final File? photoFile;
+  final VoidCallback onEditTap;
+
+  const _ProfileHeader({
+    required this.name,
+    required this.photoFile,
+    required this.onEditTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -82,20 +264,23 @@ class _ProfileHeader extends StatelessWidget {
           CircleAvatar(
             radius: 34,
             backgroundColor: kLightGreen,
-            child: Icon(
-              Icons.person,
-              color: kDarkGreen.withValues(alpha: 0.6),
-              size: 34,
-            ),
+            backgroundImage: photoFile != null ? FileImage(photoFile!) : null,
+            child: photoFile == null
+                ? Icon(
+                    Icons.person,
+                    color: kDarkGreen.withValues(alpha: 0.6),
+                    size: 34,
+                  )
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Nama Pengguna',
-                  style: TextStyle(
+                Text(
+                  name,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: kDarkGreen,
@@ -112,10 +297,13 @@ class _ProfileHeader extends StatelessWidget {
               ],
             ),
           ),
-          Icon(
-            Icons.edit_outlined,
-            color: kDarkGreen.withValues(alpha: 0.6),
-            size: 20,
+          GestureDetector(
+            onTap: onEditTap,
+            child: Icon(
+              Icons.edit_outlined,
+              color: kDarkGreen.withValues(alpha: 0.6),
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -193,7 +381,7 @@ class _MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = data.isDestructive ? Colors.redAccent : kDarkGreen;
     return InkWell(
-      onTap: () {}, // sambungkan ke halaman masing-masing nanti
+      onTap: () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         child: Row(
