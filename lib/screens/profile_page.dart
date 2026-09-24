@@ -200,10 +200,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: 'Akun',
                 items: [
                   _MenuItemData(
-                    icon: Icons.receipt_long_outlined,
-                    label: 'Riwayat Pesanan',
-                  ),
-                  _MenuItemData(
                     icon: Icons.location_on_outlined,
                     label: 'Alamat Tersimpan',
                   ),
@@ -215,7 +211,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.credit_card_outlined,
                     label: 'Metode Pembayaran',
                   ),
-                  _MenuItemData(icon: Icons.star_border, label: 'Ulasan'),
                 ],
               ),
               const SizedBox(height: 20),
