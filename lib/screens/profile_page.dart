@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'chat_list_page.dart';
 import 'orders_page.dart';
+import 'address_sheet.dart';
 
 import '../constants.dart';
 
@@ -180,6 +181,17 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openAddressSheet() async {
+    final selected = await showAddressPickerSheet(context);
+    if (selected != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Alamat dipakai: ${selected.label} - ${selected.address}'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,22 +208,23 @@ class _ProfilePageState extends State<ProfilePage> {
                 onEditTap: _openEditSheet,
               ),
               const SizedBox(height: 24),
-              const _MenuSection(
+              _MenuSection(
                 title: 'Akun',
                 items: [
                   _MenuItemData(
                     icon: Icons.location_on_outlined,
                     label: 'Alamat Tersimpan',
+                    onTap: _openAddressSheet,
                   ),
-                  _MenuItemData(
+                  const _MenuItemData(
                     icon: Icons.favorite_border,
                     label: 'Produk Favorit',
                   ),
-                  _MenuItemData(
+                  const _MenuItemData(
                     icon: Icons.storefront,
                     label: 'Toko yang Diikuti',
                   ),
-                  _MenuItemData(
+                  const _MenuItemData(
                     icon: Icons.credit_card_outlined,
                     label: 'Metode Pembayaran',
                   ),
@@ -318,10 +331,13 @@ class _MenuItemData {
   final IconData icon;
   final String label;
   final bool isDestructive;
+  final VoidCallback? onTap;
+
   const _MenuItemData({
     required this.icon,
     required this.label,
     this.isDestructive = false,
+    this.onTap,
   });
 }
 
@@ -383,7 +399,7 @@ class _MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = data.isDestructive ? Colors.redAccent : kDarkGreen;
     return InkWell(
-      onTap: () {},
+      onTap: data.onTap ?? () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         child: Row(
