@@ -7,6 +7,7 @@ import 'orders_page.dart';
 import 'profile_page.dart';
 import 'notification_page.dart';
 import 'cart_page.dart';
+import 'product_detail_page.dart';
 
 class HomePageUser extends StatefulWidget {
   const HomePageUser({super.key});
@@ -49,12 +50,11 @@ class _HomePageUserState extends State<HomePageUser> {
                   const _SectionTitle(title: 'Bazar Favorit'),
                   const SizedBox(height: 14),
                   const _PopularStoresRow(),
-                  const SizedBox(height: 100), // ruang untuk bottom nav
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
           ),
-          // Tombol bulat AI di pojok kanan bawah
           Positioned(
             right: 16,
             bottom: 80,
@@ -81,7 +81,6 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Contoh jumlah item keranjang & notifikasi (statis, ganti dengan data asli nanti)
     const int cartCount = 2;
     const int notifCount = 1;
 
@@ -152,7 +151,6 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-// Ikon dengan badge angka, badge hanya tampil kalau count > 0
 class _IconWithBadge extends StatelessWidget {
   final IconData icon;
   final int count;
@@ -289,6 +287,10 @@ class _PromoCard extends StatelessWidget {
     required this.seller,
   });
 
+  int _priceToInt(String priceText) {
+    return int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -339,18 +341,41 @@ class _PromoCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: kLightGreen,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Lihat Detail',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: kDarkGreen,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailPage(
+                      name: title,
+                      storeName: seller,
+                      originalPrice: _priceToInt(price),
+                      discountPrice: _priceToInt(price),
+                      rating: 4.7,
+                      reviewCount: 120,
+                      prepTime: '15-20 min',
+                      kcal: 250,
+                      description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: kLightGreen,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Lihat Detail',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: kDarkGreen,
+                  ),
                 ),
               ),
             ),
@@ -431,80 +456,108 @@ class _ProductCard extends StatelessWidget {
   final _ProductData data;
   const _ProductCard({required this.data});
 
+  int _priceToInt(String priceText) {
+    return int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.15)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              color: kLightGreen,
-              child: Icon(
-                Icons.image_outlined,
-                color: kDarkGreen.withValues(alpha: 0.4),
-                size: 32,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailPage(
+              name: data.name,
+              storeName: data.seller,
+              originalPrice: _priceToInt(data.price),
+              discountPrice: _priceToInt(data.price),
+              rating: 4.7,
+              reviewCount: 120,
+              prepTime: '15-20 min',
+              kcal: 250,
+              description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kDarkGreen.withValues(alpha: 0.15)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                color: kLightGreen,
+                child: Icon(
+                  Icons.image_outlined,
+                  color: kDarkGreen.withValues(alpha: 0.4),
+                  size: 32,
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  data.name,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: kDarkGreen,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      data.price,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data.name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen,
                     ),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: kLightGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: kDarkGreen.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        data.price,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: kDarkGreen,
                         ),
                       ),
-                      child: const Icon(Icons.add, size: 16, color: kDarkGreen),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  data.seller,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: kDarkGreen.withValues(alpha: 0.7),
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: kLightGreen,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: kDarkGreen.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          size: 16,
+                          color: kDarkGreen,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    data.seller,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: kDarkGreen.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
