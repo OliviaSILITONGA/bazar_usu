@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import '../constants.dart';
 
 class CartItem {
@@ -33,6 +32,8 @@ class _CartPageState extends State<CartPage> {
     CartItem(storeName: 'PAK SEBLAK', description: 'Seblak dengan mie, kerupuk dll', price: 36000),
   ];
 
+  bool _editMode = false; // true = lagi mode edit (tampil Favoritkan/Hapus)
+
   bool get _allSelected => _items.every((e) => e.selected);
 
   int get _total => _items
@@ -47,6 +48,40 @@ class _CartPageState extends State<CartPage> {
     });
   }
 
+  void _toggleEditMode() {
+    setState(() {
+      _editMode = !_editMode;
+    });
+  }
+
+  void _hapusTerpilih() {
+    final adaTerpilih = _items.any((e) => e.selected);
+    if (!adaTerpilih) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pilih produk yang ingin dihapus dulu')),
+      );
+      return;
+    }
+    setState(() {
+      _items.removeWhere((e) => e.selected);
+      if (_items.isEmpty) _editMode = false;
+    });
+  }
+
+  void _favoritkanTerpilih() {
+    final adaTerpilih = _items.any((e) => e.selected);
+    if (!adaTerpilih) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pilih produk yang ingin difavoritkan dulu')),
+      );
+      return;
+    }
+    // TODO: sambungkan ke logic/database favorit kamu di sini
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Produk ditambahkan ke favorit')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,7 +89,11 @@ class _CartPageState extends State<CartPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _CartHeader(itemCount: _items.length),
+            _CartHeader(
+              itemCount: _items.length,
+              editMode: _editMode,
+              onEditToggle: _toggleEditMode,
+            ),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -74,9 +113,12 @@ class _CartPageState extends State<CartPage> {
               ),
             ),
             _CheckoutBar(
+              editMode: _editMode,
               allSelected: _allSelected,
               onSelectAllChanged: _toggleAll,
               total: _total,
+              onHapus: _hapusTerpilih,
+              onFavoritkan: _favoritkanTerpilih,
             ),
           ],
         ),
@@ -88,7 +130,14 @@ class _CartPageState extends State<CartPage> {
 // ==================== HEADER ====================
 class _CartHeader extends StatelessWidget {
   final int itemCount;
-  const _CartHeader({required this.itemCount});
+  final bool editMode;
+  final VoidCallback onEditToggle;
+
+  const _CartHeader({
+    required this.itemCount,
+    required this.editMode,
+    required this.onEditToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +157,11 @@ class _CartHeader extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () {},
-            child: Text('Edit', style: TextStyle(color: kDarkGreen.withValues(alpha: 0.6), fontSize: 14)),
+            onPressed: onEditToggle,
+            child: Text(
+              editMode ? 'Selesai' : 'Edit',
+              style: TextStyle(color: kDarkGreen.withValues(alpha: 0.6), fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -246,16 +298,22 @@ class _QuantityStepper extends StatelessWidget {
   }
 }
 
-// ==================== BAR CHECKOUT ====================
+// ==================== BAR CHECKOUT / EDIT ====================
 class _CheckoutBar extends StatelessWidget {
+  final bool editMode;
   final bool allSelected;
   final ValueChanged<bool?> onSelectAllChanged;
   final int total;
+  final VoidCallback onHapus;
+  final VoidCallback onFavoritkan;
 
   const _CheckoutBar({
+    required this.editMode,
     required this.allSelected,
     required this.onSelectAllChanged,
     required this.total,
+    required this.onHapus,
+    required this.onFavoritkan,
   });
 
   @override
@@ -273,21 +331,45 @@ class _CheckoutBar extends StatelessWidget {
             Checkbox(value: allSelected, onChanged: onSelectAllChanged, activeColor: kDarkGreen),
             Text('Semua', style: TextStyle(fontSize: 13, color: kDarkGreen.withValues(alpha: 0.8))),
             const Spacer(),
-            Text(
-              'Rp${_formatPrice(total)}',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: kDarkGreen),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () {}, // sambungkan ke proses checkout nanti
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kDarkGreen,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            if (editMode) ...[
+              OutlinedButton(
+                onPressed: onFavoritkan,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kDarkGreen,
+                  side: BorderSide(color: kDarkGreen.withValues(alpha: 0.4)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: const Text('Favoritkan', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              child: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: onHapus,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ] else ...[
+              Text(
+                'Rp${_formatPrice(total)}',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: kDarkGreen),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: () {}, // sambungkan ke proses checkout nanti
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kDarkGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
           ],
         ),
       ),
