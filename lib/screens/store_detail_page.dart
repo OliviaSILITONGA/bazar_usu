@@ -278,7 +278,7 @@ class _StoreHeaderCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        'Follow',
+                        'Ikuti',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
