@@ -205,7 +205,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   _MenuItemData(
                     icon: Icons.favorite_border,
-                    label: 'Toko Favorit',
+                    label: 'Produk Favorit',
+                  ),
+                  _MenuItemData(
+                    icon: Icons.storefront,
+                    label: 'Toko yang Diikuti',
                   ),
                   _MenuItemData(
                     icon: Icons.credit_card_outlined,
