@@ -8,6 +8,7 @@ import 'profile_page.dart';
 import 'notification_page.dart';
 import 'cart_page.dart';
 import 'product_detail_page.dart';
+import 'store_detail_page.dart';
 
 class HomePageUser extends StatefulWidget {
   const HomePageUser({super.key});
@@ -333,11 +334,23 @@ class _PromoCard extends StatelessWidget {
                 fontSize: 16,
               ),
             ),
-            Text(
-              seller,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontSize: 12,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StoreDetailPage(storeName: seller),
+                  ),
+                );
+              },
+              child: Text(
+                seller,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white.withValues(alpha: 0.6),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -546,11 +559,24 @@ class _ProductCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    data.seller,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: kDarkGreen.withValues(alpha: 0.7),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              StoreDetailPage(storeName: data.seller),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      data.seller,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: kDarkGreen.withValues(alpha: 0.7),
+                        decoration: TextDecoration.underline,
+                        decorationColor: kDarkGreen.withValues(alpha: 0.35),
+                      ),
                     ),
                   ),
                 ],
@@ -633,33 +659,43 @@ class _StoreAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 68,
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: kLightGreen,
-              border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
-            ),
-            child: Icon(
-              Icons.storefront_outlined,
-              color: kDarkGreen.withValues(alpha: 0.6),
-              size: 26,
-            ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StoreDetailPage(storeName: data.name),
           ),
-          const SizedBox(height: 6),
-          Text(
-            data.name,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: kDarkGreen),
-          ),
-        ],
+        );
+      },
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kLightGreen,
+                border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
+              ),
+              child: Icon(
+                Icons.storefront_outlined,
+                color: kDarkGreen.withValues(alpha: 0.6),
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              data.name,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: kDarkGreen),
+            ),
+          ],
+        ),
       ),
     );
   }
