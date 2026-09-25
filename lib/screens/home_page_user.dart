@@ -264,12 +264,14 @@ class _PromoBanner extends StatelessWidget {
             title: 'Nasi Ayam Penyet',
             price: 'Rp 15.000',
             seller: 'Kedai Kak Wati',
+            image: 'assets/products/nasi_ayam_penyet.png',
           ),
           SizedBox(width: 12),
           _PromoCard(
             title: 'Donat Coklat',
             price: 'Rp 3.000',
             seller: 'Toko Roti',
+            image: 'assets/products/donat_coklat.png',
           ),
         ],
       ),
@@ -281,11 +283,12 @@ class _PromoCard extends StatelessWidget {
   final String title;
   final String price;
   final String seller;
-
+  final String image;
   const _PromoCard({
     required this.title,
     required this.price,
     required this.seller,
+    required this.image,
   });
 
   int _priceToInt(String priceText) {
@@ -299,6 +302,11 @@ class _PromoCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: kDarkGreen.withValues(alpha: 0.6),
+        image: DecorationImage(
+          image: AssetImage(image),
+          fit: BoxFit.cover,
+          onError: (_, __) {},
+        ),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -425,16 +433,42 @@ class _FavoriteGrid extends StatelessWidget {
   const _FavoriteGrid();
 
   static const List<_ProductData> _products = [
-    _ProductData(name: 'Ayam Penyet', price: 'Rp 15.000', seller: 'Kedai ciau'),
+    _ProductData(
+      name: 'Ayam Penyet',
+      price: 'Rp 15.000',
+      seller: 'Kedai ciau',
+      image: 'assets/products/nasi_ayam_penyet.png',
+    ),
     _ProductData(
       name: 'Teh Manis Dingin',
       price: 'Rp 5.000',
       seller: 'Kedai Kak Wati',
+      image: 'assets/products/teh_manis_dingin.png',
     ),
-    _ProductData(name: 'Donat', price: 'Rp 4.000', seller: 'Kedai ciau'),
-    _ProductData(name: 'Kue Kering', price: 'Rp 8.000', seller: 'Olip Bakery'),
-    _ProductData(name: 'Alat Tulis', price: 'Rp 100.000', seller: 'FKB'),
-    _ProductData(name: 'Kue Kering', price: 'Rp 8.000', seller: 'Olip Bakery'),
+    _ProductData(
+      name: 'Donat',
+      price: 'Rp 4.000',
+      seller: 'Kedai ciau',
+      image: 'assets/products/donat_coklat.png',
+    ),
+    _ProductData(
+      name: 'Kue Kering',
+      price: 'Rp 8.000',
+      seller: 'Olip Bakery',
+      image: 'assets/products/kue_kering.png',
+    ),
+    _ProductData(
+      name: 'Alat Tulis',
+      price: 'Rp 10.000',
+      seller: 'FKB',
+      image: 'assets/products/alat_tulis.jfif',
+    ),
+    _ProductData(
+      name: 'Kue Kering',
+      price: 'Rp 8.000',
+      seller: 'Olip Bakery,',
+      image: 'assets/products/kue_kering.png',
+    ),
   ];
 
   @override
@@ -458,10 +492,12 @@ class _ProductData {
   final String name;
   final String price;
   final String seller;
+  final String image;
   const _ProductData({
     required this.name,
     required this.price,
     required this.seller,
+    required this.image,
   });
 }
 
@@ -505,13 +541,18 @@ class _ProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Container(
+              child: Image.asset(
+                data.image,
                 width: double.infinity,
-                color: kLightGreen,
-                child: Icon(
-                  Icons.image_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.4),
-                  size: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: double.infinity,
+                  color: kLightGreen,
+                  child: Icon(
+                    Icons.image_outlined,
+                    color: kDarkGreen.withValues(alpha: 0.4),
+                    size: 32,
+                  ),
                 ),
               ),
             ),
@@ -627,10 +668,10 @@ class _PopularStoresRow extends StatelessWidget {
   const _PopularStoresRow();
 
   static const List<_StoreData> _stores = [
-    _StoreData(name: 'Kue Kering Tho'),
-    _StoreData(name: 'KFC'),
-    _StoreData(name: 'Ko yana'),
-    _StoreData(name: 'Kue Kering Tho'),
+    _StoreData(name: 'Kue Kering Tho', image: 'assets/products/kue_kering.png'),
+    _StoreData(name: 'KFC', image: 'assets/products/kfc.png'),
+    _StoreData(name: 'Ko yana', image: 'assets/products/donat_coklat.png'),
+    _StoreData(name: 'SILI TONGA', image: 'assets/images/AI_HOSHINO.jpg'),
   ];
 
   @override
@@ -650,7 +691,8 @@ class _PopularStoresRow extends StatelessWidget {
 
 class _StoreData {
   final String name;
-  const _StoreData({required this.name});
+  final String image;
+  const _StoreData({required this.name, required this.image});
 }
 
 class _StoreAvatar extends StatelessWidget {
@@ -680,10 +722,15 @@ class _StoreAvatar extends StatelessWidget {
                 color: kLightGreen,
                 border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
               ),
-              child: Icon(
-                Icons.storefront_outlined,
-                color: kDarkGreen.withValues(alpha: 0.6),
-                size: 26,
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset(
+                data.image,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.storefront_outlined,
+                  color: kDarkGreen.withValues(alpha: 0.6),
+                  size: 26,
+                ),
               ),
             ),
             const SizedBox(height: 6),

@@ -276,11 +276,13 @@ class _RecommendationGrid extends StatelessWidget {
       name: 'Dinsum Mentai',
       price: 'Rp 15.000',
       seller: 'AIF (Accounting Intelligence Fair)',
+      image: 'assets/products/DINSUM.jpg',
     ),
     _ProductData(
       name: 'Taiso (Tahu isi Bakso)',
       price: 'Rp 10.000',
       seller: 'KMK Teknik Kimia',
+      image: 'assets/products/TAISO.webp',
     ),
   ];
 
@@ -302,10 +304,12 @@ class _ProductData {
   final String name;
   final String price;
   final String seller;
+  final String image;
   const _ProductData({
     required this.name,
     required this.price,
     required this.seller,
+    required this.image,
   });
 }
 
@@ -326,13 +330,18 @@ class _ProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
+            child: Image.asset(
+              data.image,
               width: double.infinity,
-              color: kLightGreen,
-              child: Icon(
-                Icons.image_outlined,
-                color: kDarkGreen.withValues(alpha: 0.4),
-                size: 32,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: double.infinity,
+                color: kLightGreen,
+                child: Icon(
+                  Icons.image_outlined,
+                  color: kDarkGreen.withValues(alpha: 0.4),
+                  size: 32,
+                ),
               ),
             ),
           ),
