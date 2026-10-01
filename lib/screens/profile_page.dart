@@ -5,9 +5,11 @@ import 'package:image_picker/image_picker.dart';
 
 import 'chat_list_page.dart';
 import 'orders_page.dart';
-import 'address_sheet.dart';
+import 'seller_main_navigation_page.dart';
+import 'seller_registration_page.dart';
 
 import '../constants.dart';
+import '../services/seller_state.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -181,15 +183,85 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _openAddressSheet() async {
-    final selected = await showAddressPickerSheet(context);
-    if (selected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Alamat dipakai: ${selected.label} - ${selected.address}'),
-        ),
-      );
+  void _handleSwitchAccount() {
+    final status = SellerAccountState.instance.status.value;
+
+    switch (status) {
+      case SellerStatus.none:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SellerRegistrationPage()),
+        );
+        break;
+      case SellerStatus.pending:
+        _showInfoDialog(
+          title: 'Menunggu Verifikasi',
+          message:
+              'Pendaftaran toko kamu sedang ditinjau oleh admin. '
+              'Kamu akan bisa beralih ke akun penjual setelah disetujui.',
+        );
+        break;
+      case SellerStatus.rejected:
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Pendaftaran Ditolak'),
+            content: const Text(
+              'Pendaftaran toko kamu sebelumnya belum disetujui admin. '
+              'Kamu bisa mencoba mendaftar ulang dengan data yang lebih lengkap.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Nanti'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SellerRegistrationPage(),
+                    ),
+                  );
+                },
+                child: const Text('Daftar Ulang'),
+              ),
+            ],
+          ),
+        );
+        break;
+      case SellerStatus.approved:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const SellerMainNavigationPage(),
+          ),
+        );
+        break;
     }
+  }
+
+  void _showInfoDialog({required String title, required String message}) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Oke'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -208,40 +280,50 @@ class _ProfilePageState extends State<ProfilePage> {
                 onEditTap: _openEditSheet,
               ),
               const SizedBox(height: 24),
-              _MenuSection(
+              const _MenuSection(
                 title: 'Akun',
                 items: [
                   _MenuItemData(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Riwayat Pesanan',
+                  ),
+                  _MenuItemData(
                     icon: Icons.location_on_outlined,
                     label: 'Alamat Tersimpan',
-                    onTap: _openAddressSheet,
                   ),
-                  const _MenuItemData(
+                  _MenuItemData(
                     icon: Icons.favorite_border,
-                    label: 'Produk Favorit',
+                    label: 'Toko Favorit',
                   ),
-                  const _MenuItemData(
-                    icon: Icons.storefront,
-                    label: 'Toko yang Diikuti',
-                  ),
-                  const _MenuItemData(
+                  _MenuItemData(
                     icon: Icons.credit_card_outlined,
                     label: 'Metode Pembayaran',
                   ),
+                  _MenuItemData(icon: Icons.star_border, label: 'Ulasan'),
                 ],
               ),
               const SizedBox(height: 20),
-              const _MenuSection(
+              _MenuSection(
                 title: 'Lainnya',
                 items: [
-                  _MenuItemData(
+                  const _MenuItemData(
                     icon: Icons.settings_outlined,
                     label: 'Pengaturan',
                   ),
-                  _MenuItemData(icon: Icons.help_outline, label: 'Bantuan'),
-                  _MenuItemData(icon: Icons.swap_horiz, label: 'Beralih Akun'),
-                  _MenuItemData(icon: Icons.flag_outlined, label: 'Laporkan'),
+                  const _MenuItemData(
+                    icon: Icons.help_outline,
+                    label: 'Bantuan',
+                  ),
                   _MenuItemData(
+                    icon: Icons.swap_horiz,
+                    label: 'Beralih Akun',
+                    onTap: _handleSwitchAccount,
+                  ),
+                  const _MenuItemData(
+                    icon: Icons.flag_outlined,
+                    label: 'Laporkan',
+                  ),
+                  const _MenuItemData(
                     icon: Icons.logout,
                     label: 'Keluar',
                     isDestructive: true,
@@ -332,7 +414,6 @@ class _MenuItemData {
   final String label;
   final bool isDestructive;
   final VoidCallback? onTap;
-
   const _MenuItemData({
     required this.icon,
     required this.label,
