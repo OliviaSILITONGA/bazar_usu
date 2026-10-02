@@ -52,8 +52,8 @@ class AuthCard extends StatelessWidget {
                     children: [
                       Center(
                         child: Image.asset(
-                          'assets/images/logo.png',
-                          height: 72,
+                          'assets/icon/icon.png',
+                          height: 150,
                           errorBuilder: (_, __, ___) => Column(
                             children: [
                               Container(

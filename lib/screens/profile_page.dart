@@ -7,6 +7,7 @@ import 'chat_list_page.dart';
 import 'orders_page.dart';
 import 'seller_main_navigation_page.dart';
 import 'seller_registration_page.dart';
+import 'favorite_stores_page.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
@@ -237,9 +238,7 @@ class _ProfilePageState extends State<ProfilePage> {
       case SellerStatus.approved:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const SellerMainNavigationPage(),
-          ),
+          MaterialPageRoute(builder: (_) => const SellerMainNavigationPage()),
         );
         break;
     }
@@ -249,9 +248,7 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title),
         content: Text(message),
         actions: [
@@ -280,7 +277,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 onEditTap: _openEditSheet,
               ),
               const SizedBox(height: 24),
-              const _MenuSection(
+              _MenuSection(
                 title: 'Akun',
                 items: [
                   _MenuItemData(
@@ -294,6 +291,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   _MenuItemData(
                     icon: Icons.favorite_border,
                     label: 'Toko Favorit',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FavoriteStoresPage(),
+                        ),
+                      );
+                    },
                   ),
                   _MenuItemData(
                     icon: Icons.credit_card_outlined,

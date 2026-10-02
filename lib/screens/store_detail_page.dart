@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import 'product_detail_page.dart';
+import '../services/favorite_stores_state.dart';
 
 // ==================== DATA PRODUK TOKO ====================
 class StoreProductData {
@@ -114,7 +115,13 @@ class StoreDetailPage extends StatefulWidget {
 }
 
 class _StoreDetailPageState extends State<StoreDetailPage> {
-  bool _liked = false;
+  bool get _liked => FavoriteStoresState.instance.isFavorite(widget.storeName);
+
+  void _toggleLike() {
+    setState(() {
+      FavoriteStoresState.instance.toggle(widget.storeName);
+    });
+  }
 
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
@@ -141,7 +148,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                 child: _StoreHeaderCard(
                   profile: profile,
                   liked: _liked,
-                  onLikeTap: () => setState(() => _liked = !_liked),
+                  onLikeTap: _toggleLike,
                 ),
               ),
               const SizedBox(height: 24),

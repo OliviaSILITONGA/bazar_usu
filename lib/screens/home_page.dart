@@ -259,7 +259,7 @@ class _SlideFitur extends StatelessWidget {
         children: [
           Image.asset(
             'assets/images/LogoUSU.gif',
-            width: 120,
+            width: 180,
             errorBuilder: (_, __, ___) => const SizedBox(height: 0),
           ),
           const SizedBox(height: 12),
@@ -479,11 +479,7 @@ class _StepItem extends StatelessWidget {
         Text(
           data.label,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            color: kDarkGreen,
-            height: 1.3,
-          ),
+          style: const TextStyle(fontSize: 11, color: kDarkGreen, height: 1.3),
         ),
       ],
     );
