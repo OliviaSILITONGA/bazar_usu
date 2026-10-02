@@ -8,6 +8,9 @@ import 'orders_page.dart';
 import 'seller_main_navigation_page.dart';
 import 'seller_registration_page.dart';
 import 'favorite_stores_page.dart';
+import 'favorite_products_page.dart';
+import 'saved_addresses_page.dart';
+import 'login_screen.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
@@ -197,9 +200,7 @@ class _ProfilePageState extends State<ProfilePage> {
       case SellerStatus.pending:
         _showInfoDialog(
           title: 'Menunggu Verifikasi',
-          message:
-              'Pendaftaran toko kamu sedang ditinjau oleh admin. '
-              'Kamu akan bisa beralih ke akun penjual setelah disetujui.',
+          message: 'Pendaftaran toko kamu sedang ditinjau oleh admin. Kamu akan bisa beralih ke akun penjual setelah disetujui.',
         );
         break;
       case SellerStatus.rejected:
@@ -211,8 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             title: const Text('Pendaftaran Ditolak'),
             content: const Text(
-              'Pendaftaran toko kamu sebelumnya belum disetujui admin. '
-              'Kamu bisa mencoba mendaftar ulang dengan data yang lebih lengkap.',
+              'Pendaftaran toko kamu sebelumnya belum disetujui admin. Kamu bisa mencoba mendaftar ulang dengan data yang lebih lengkap.',
             ),
             actions: [
               TextButton(
@@ -261,6 +261,39 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Keluar'),
+        content: const Text('Yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Keluar',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -281,15 +314,31 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: 'Akun',
                 items: [
                   _MenuItemData(
-                    icon: Icons.receipt_long_outlined,
-                    label: 'Riwayat Pesanan',
+                    icon: Icons.favorite_border,
+                    label: 'Produk Favorit',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FavoriteProductsPage(),
+                        ),
+                      );
+                    },
                   ),
                   _MenuItemData(
                     icon: Icons.location_on_outlined,
                     label: 'Alamat Tersimpan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SavedAddressesPage(),
+                        ),
+                      );
+                    },
                   ),
                   _MenuItemData(
-                    icon: Icons.favorite_border,
+                    icon: Icons.store_outlined,
                     label: 'Toko Favorit',
                     onTap: () {
                       Navigator.push(
@@ -300,11 +349,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       );
                     },
                   ),
-                  _MenuItemData(
-                    icon: Icons.credit_card_outlined,
-                    label: 'Metode Pembayaran',
-                  ),
-                  _MenuItemData(icon: Icons.star_border, label: 'Ulasan'),
                 ],
               ),
               const SizedBox(height: 20),
@@ -319,21 +363,31 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.help_outline,
                     label: 'Bantuan',
                   ),
-                  _MenuItemData(
-                    icon: Icons.swap_horiz,
-                    label: 'Beralih Akun',
-                    onTap: _handleSwitchAccount,
-                  ),
                   const _MenuItemData(
                     icon: Icons.flag_outlined,
                     label: 'Laporkan',
                   ),
-                  const _MenuItemData(
-                    icon: Icons.logout,
-                    label: 'Keluar',
-                    isDestructive: true,
-                  ),
                 ],
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _SwitchAccountBanner(onTap: _handleSwitchAccount),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _LogoutButton(onTap: _handleLogout),
+              ),
+              const SizedBox(height: 18),
+              Center(
+                child: Text(
+                  'BazarUSU v1.0 • Dibuat dengan sepenuh hati',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: kDarkGreen.withValues(alpha: 0.5),
+                  ),
+                ),
               ),
               const SizedBox(height: 100),
             ],
@@ -463,7 +517,7 @@ class _MenuSection extends StatelessWidget {
                     if (index != items.length - 1)
                       Divider(
                         height: 1,
-                        indent: 50,
+                        indent: 58,
                         color: kDarkGreen.withValues(alpha: 0.08),
                       ),
                   ],
@@ -487,10 +541,22 @@ class _MenuTile extends StatelessWidget {
     return InkWell(
       onTap: data.onTap ?? () {},
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            Icon(data.icon, size: 20, color: color.withValues(alpha: 0.85)),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: kLightGreen,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                data.icon,
+                size: 17,
+                color: color.withValues(alpha: 0.85),
+              ),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -504,6 +570,103 @@ class _MenuTile extends StatelessWidget {
                 size: 18,
                 color: kDarkGreen.withValues(alpha: 0.4),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== BANNER BERALIH AKUN (WIDGET BARU) ====================
+class _SwitchAccountBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SwitchAccountBanner({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFCF3D8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE9D08C)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE9D08C),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.storefront,
+                color: Color(0xFF8A6D1D),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Beralih ke Akun Penjual',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF6B5312),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Kelola toko dan pesananmu',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF8A7530)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFF8A7530), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== TOMBOL KELUAR (WIDGET BARU) ====================
+class _LogoutButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _LogoutButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.logout, size: 18, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text(
+              'Keluar',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.redAccent,
+              ),
+            ),
           ],
         ),
       ),
@@ -539,12 +702,10 @@ class _BottomNavBar extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OrdersPage()),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const OrdersPage()),
+              ),
               child: Icon(
                 Icons.receipt_long_outlined,
                 color: kDarkGreen.withValues(alpha: 0.5),
@@ -552,12 +713,10 @@ class _BottomNavBar extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ChatListPage()),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatListPage()),
+              ),
               child: Icon(
                 Icons.chat_bubble_outline,
                 color: kDarkGreen.withValues(alpha: 0.5),
@@ -565,13 +724,11 @@ class _BottomNavBar extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
-                );
-              },
-              child: Icon(Icons.person, color: kDarkGreen, size: 26),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              ),
+              child: const Icon(Icons.person, color: kDarkGreen, size: 26),
             ),
           ],
         ),
