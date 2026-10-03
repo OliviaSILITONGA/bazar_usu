@@ -377,6 +377,7 @@ class _PromoCard extends StatelessWidget {
                       prepTime: '15-20 min',
                       kcal: 250,
                       description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+                      image: image,
                     ),
                   ),
                 );
@@ -526,6 +527,7 @@ class _ProductCard extends StatelessWidget {
               prepTime: '15-20 min',
               kcal: 250,
               description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+              image: data.image,
             ),
           ),
         );

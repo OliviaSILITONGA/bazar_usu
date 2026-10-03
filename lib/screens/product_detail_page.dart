@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/favorite_products_state.dart';
+import 'chat_detail_page.dart';
+import '../services/cart_state.dart';
 
 class ReviewData {
   final int stars;
@@ -18,6 +21,7 @@ class ProductDetailPage extends StatefulWidget {
   final String prepTime;
   final int kcal;
   final String description;
+  final String image;
 
   const ProductDetailPage({
     super.key,
@@ -30,6 +34,7 @@ class ProductDetailPage extends StatefulWidget {
     required this.prepTime,
     required this.kcal,
     required this.description,
+    this.image = '',
   });
 
   @override
@@ -46,6 +51,57 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       comment: 'Nasi Rendangnya enak banget, tapi sayang porsinya agak kecil.',
     ),
   ];
+
+  bool get _isFavorited => FavoriteProductsState.instance.products.value.any(
+    (p) => p.storeName == widget.storeName && p.description == widget.name,
+  );
+
+  void _toggleFavorite() {
+    final product = FavoriteProductData(
+      storeName: widget.storeName,
+      description: widget.name,
+      price: widget.discountPrice,
+    );
+    setState(() {
+      if (_isFavorited) {
+        FavoriteProductsState.instance.remove(product);
+      } else {
+        FavoriteProductsState.instance.addProduct(product);
+      }
+    });
+  }
+
+  void _openChatWithSeller() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatDetailPage(contactName: widget.storeName),
+      ),
+    );
+  }
+
+  void _addToCart() {
+    CartState.instance.addItem(
+      storeName: widget.storeName,
+      description: widget.name,
+      price: widget.discountPrice,
+      quantity: _quantity,
+    );
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Berhasil!'),
+        content: Text('${widget.name} (x$_quantity) ditambahkan ke keranjang.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Oke'),
+          ),
+        ],
+      ),
+    );
+  }
 
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
@@ -65,7 +121,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ProductPhoto(onClose: () => Navigator.pop(context)),
+                _ProductPhoto(
+                  image: widget.image,
+                  onClose: () => Navigator.pop(context),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                   child: Column(
@@ -77,22 +136,56 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         prepTime: widget.prepTime,
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        widget.name,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.storeName,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: kDarkGreen,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.name,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.storeName,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: kDarkGreen,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: _toggleFavorite,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.redAccent.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Icon(
+                                _isFavorited
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: Colors.redAccent,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                       _KcalAndPriceRow(
@@ -111,7 +204,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      _ChatButton(onTap: () {}),
+                      _ChatButton(onTap: _openChatWithSeller),
                       const SizedBox(height: 24),
                       const Text(
                         'Ulasan Makanan',
@@ -143,6 +236,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               onQuantityChanged: (q) => setState(() => _quantity = q),
               totalPrice: widget.discountPrice * _quantity,
               formatPrice: _formatPrice,
+              onAddToCart: _addToCart,
             ),
           ),
         ],
@@ -153,24 +247,41 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
 // ==================== FOTO PRODUK + TOMBOL X ====================
 class _ProductPhoto extends StatelessWidget {
+  final String image;
   final VoidCallback onClose;
-  const _ProductPhoto({required this.onClose});
+  const _ProductPhoto({required this.image, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Container(
-          height: 260,
-          width: double.infinity,
-          color: kLightGreen,
-          child: Icon(
-            Icons.image_outlined,
-            color: kDarkGreen.withValues(alpha: 0.35),
-            size: 56,
-          ),
-          // Ganti dengan Image.asset/Image.network foto produk asli.
-        ),
+        image.isEmpty
+            ? Container(
+                height: 260,
+                width: double.infinity,
+                color: kLightGreen,
+                child: Icon(
+                  Icons.image_outlined,
+                  color: kDarkGreen.withValues(alpha: 0.35),
+                  size: 56,
+                ),
+              )
+            : Image.asset(
+                image,
+                height: 260,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 260,
+                  width: double.infinity,
+                  color: kLightGreen,
+                  child: Icon(
+                    Icons.image_outlined,
+                    color: kDarkGreen.withValues(alpha: 0.35),
+                    size: 56,
+                  ),
+                ),
+              ),
         Positioned(
           top: 44,
           right: 16,
@@ -375,18 +486,20 @@ class _ReviewBubble extends StatelessWidget {
   }
 }
 
-// ==================== BAR BAWAH ====================
+// ==================== BAR BAWAH (STEPPER + TAMBAH KE KERANJANG) ====================
 class _BottomBar extends StatelessWidget {
   final int quantity;
   final ValueChanged<int> onQuantityChanged;
   final int totalPrice;
   final String Function(int) formatPrice;
+  final VoidCallback onAddToCart;
 
   const _BottomBar({
     required this.quantity,
     required this.onQuantityChanged,
     required this.totalPrice,
     required this.formatPrice,
+    required this.onAddToCart,
   });
 
   @override
@@ -441,8 +554,7 @@ class _BottomBar extends StatelessWidget {
               child: SizedBox(
                 height: 50,
                 child: ElevatedButton(
-                  onPressed:
-                      () {}, // sambungkan ke logika tambah ke keranjang nanti
+                  onPressed: onAddToCart,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kDarkGreen,
                     foregroundColor: Colors.white,

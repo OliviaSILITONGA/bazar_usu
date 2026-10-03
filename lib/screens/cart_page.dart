@@ -1,24 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import 'checkout_page.dart';
+import '../services/cart_state.dart';
 import '../services/favorite_products_state.dart';
-
-class CartItem {
-  final String storeName;
-  final String description;
-  final int price;
-  int quantity;
-  bool selected;
-
-  CartItem({
-    required this.storeName,
-    required this.description,
-    required this.price,
-    this.quantity = 1,
-    this.selected = false,
-  });
-}
+import 'checkout_page.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -28,92 +13,28 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  final List<CartItem> _items = [
-    CartItem(
-      storeName: 'PAK SEBLAK',
-      description: 'Seblak dengan mie, kerupuk dll',
-      price: 36000,
-    ),
-    CartItem(
-      storeName: 'PAK SEBLAK',
-      description: 'Seblak dengan mie, kerupuk dll',
-      price: 36000,
-    ),
-    CartItem(
-      storeName: 'PAK SEBLAK',
-      description: 'Seblak dengan mie, kerupuk dll',
-      price: 36000,
-    ),
-    CartItem(
-      storeName: 'PAK SEBLAK',
-      description: 'Seblak dengan mie, kerupuk dll',
-      price: 36000,
-    ),
-  ];
-
-  bool _editMode = false; // true = lagi mode edit (tampil Favoritkan/Hapus)
-
-  bool get _allSelected => _items.every((e) => e.selected);
-
-  int get _total => _items
-      .where((e) => e.selected)
-      .fold(0, (sum, e) => sum + (e.price * e.quantity));
-
-  void _toggleAll(bool? value) {
-    setState(() {
-      for (final item in _items) {
-        item.selected = value ?? false;
-      }
-    });
-  }
-
-  Future<void> _handleCheckout() async {
-    final selected = _items.where((e) => e.selected).toList();
-    if (selected.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih produk yang ingin di-checkout dulu'),
-        ),
-      );
-      return;
-    }
-
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CheckoutPage(items: selected, total: _total),
-      ),
-    );
-
-    if (result == true && mounted) {
-      setState(() {
-        _items.removeWhere((e) => e.selected);
-      });
-    }
-  }
+  bool _editMode = false;
 
   void _toggleEditMode() {
-    setState(() {
-      _editMode = !_editMode;
-    });
+    setState(() => _editMode = !_editMode);
   }
 
-  void _hapusTerpilih() {
-    final adaTerpilih = _items.any((e) => e.selected);
-    if (!adaTerpilih) {
+  void _hapusTerpilih(List<CartItem> items) {
+    final selected = items.where((e) => e.selected).toList();
+    if (selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pilih produk yang ingin dihapus dulu')),
       );
       return;
     }
-    setState(() {
-      _items.removeWhere((e) => e.selected);
-      if (_items.isEmpty) _editMode = false;
-    });
+    CartState.instance.removeItems(selected);
+    if (CartState.instance.items.value.isEmpty) {
+      setState(() => _editMode = false);
+    }
   }
 
-  void _favoritkanTerpilih() {
-    final selected = _items.where((e) => e.selected).toList();
+  void _favoritkanTerpilih(List<CartItem> items) {
+    final selected = items.where((e) => e.selected).toList();
     if (selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -136,48 +57,123 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
+  Future<void> _handleCheckout(List<CartItem> items, int total) async {
+    final selected = items.where((e) => e.selected).toList();
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih produk yang ingin di-checkout dulu'),
+        ),
+      );
+      return;
+    }
+
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CheckoutPage(items: selected, total: total),
+      ),
+    );
+
+    if (result == true && mounted) {
+      CartState.instance.removeItems(selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: Column(
-          children: [
-            _CartHeader(
-              itemCount: _items.length,
-              editMode: _editMode,
-              onEditToggle: _toggleEditMode,
-            ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _items.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: kDarkGreen.withValues(alpha: 0.1),
+        child: ValueListenableBuilder<List<CartItem>>(
+          valueListenable: CartState.instance.items,
+          builder: (context, items, _) {
+            final allSelected =
+                items.isNotEmpty && items.every((e) => e.selected);
+            final total = items
+                .where((e) => e.selected)
+                .fold<int>(0, (sum, e) => sum + e.price * e.quantity);
+
+            return Column(
+              children: [
+                _CartHeader(
+                  itemCount: items.length,
+                  editMode: _editMode,
+                  onEditToggle: _toggleEditMode,
                 ),
-                itemBuilder: (context, index) {
-                  final item = _items[index];
-                  return _CartItemTile(
-                    item: item,
-                    onSelectedChanged: (v) =>
-                        setState(() => item.selected = v ?? false),
-                    onQtyChanged: (q) => setState(() => item.quantity = q),
-                  );
-                },
-              ),
-            ),
-            _CheckoutBar(
-              editMode: _editMode,
-              allSelected: _allSelected,
-              onSelectAllChanged: _toggleAll,
-              total: _total,
-              onHapus: _hapusTerpilih,
-              onFavoritkan: _favoritkanTerpilih,
-              onCheckout: _handleCheckout,
-            ),
-          ],
+                Expanded(
+                  child: items.isEmpty
+                      ? const _EmptyCart()
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) => Divider(
+                            height: 1,
+                            color: kDarkGreen.withValues(alpha: 0.1),
+                          ),
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            return _CartItemTile(
+                              item: item,
+                              onSelectedChanged: (v) {
+                                item.selected = v ?? false;
+                                CartState.instance.notifyChanged();
+                              },
+                              onQtyChanged: (q) {
+                                item.quantity = q;
+                                CartState.instance.notifyChanged();
+                              },
+                            );
+                          },
+                        ),
+                ),
+                _CheckoutBar(
+                  editMode: _editMode,
+                  allSelected: allSelected,
+                  onSelectAllChanged: (v) {
+                    for (final e in items) {
+                      e.selected = v ?? false;
+                    }
+                    CartState.instance.notifyChanged();
+                  },
+                  total: total,
+                  onHapus: () => _hapusTerpilih(items),
+                  onFavoritkan: () => _favoritkanTerpilih(items),
+                  onCheckout: () => _handleCheckout(items, total),
+                ),
+              ],
+            );
+          },
         ),
+      ),
+    );
+  }
+}
+
+// ==================== STATE KOSONG ====================
+class _EmptyCart extends StatelessWidget {
+  const _EmptyCart();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.shopping_cart_outlined,
+            size: 48,
+            color: kDarkGreen.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Keranjang masih kosong',
+            style: TextStyle(
+              fontSize: 14,
+              color: kDarkGreen.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }

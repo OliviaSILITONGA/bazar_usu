@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/order_state.dart';
-import 'cart_page.dart';
+import '../services/cart_state.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<CartItem> items;
@@ -121,6 +121,45 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: kDarkGreen.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.local_shipping_outlined,
+                          size: 18,
+                          color: kDarkGreen,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Estimasi tiba 1-2 hari • Gratis Ongkir',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: kDarkGreen.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: kDarkGreen.withValues(alpha: 0.4),
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   const SizedBox(height: 8),
                   const Text(
                     'Metode Pembayaran',
@@ -142,30 +181,45 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     child: Column(
                       children: List.generate(_payments.length, (index) {
                         final payment = _payments[index];
+                        final isSelected = index == _selectedPayment;
                         return Column(
                           children: [
-                            RadioListTile<int>(
-                              value: index,
-                              groupValue: _selectedPayment,
-                              onChanged: (v) =>
-                                  setState(() => _selectedPayment = v ?? 0),
-                              activeColor: kDarkGreen,
-                              title: Row(
-                                children: [
-                                  Icon(
-                                    payment.icon,
-                                    size: 20,
-                                    color: kDarkGreen,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    payment.label,
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
+                            InkWell(
+                              onTap: () =>
+                                  setState(() => _selectedPayment = index),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      payment.icon,
+                                      size: 20,
                                       color: kDarkGreen,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        payment.label,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          color: kDarkGreen,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      isSelected
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isSelected
+                                          ? kDarkGreen
+                                          : Colors.black26,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             if (index != _payments.length - 1)
@@ -195,6 +249,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
       bottomNavigationBar: _CheckoutBottomBar(
         total: _grandTotal,
+        itemCount: widget.items.length,
         formatPrice: _formatPrice,
         onBuatPesanan: _buatPesanan,
       ),
@@ -479,11 +534,13 @@ class _SummaryRow extends StatelessWidget {
 // ==================== BAR BAWAH ====================
 class _CheckoutBottomBar extends StatelessWidget {
   final int total;
+  final int itemCount;
   final String Function(int) formatPrice;
   final VoidCallback onBuatPesanan;
 
   const _CheckoutBottomBar({
     required this.total,
+    required this.itemCount,
     required this.formatPrice,
     required this.onBuatPesanan,
   });
@@ -511,7 +568,7 @@ class _CheckoutBottomBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Total',
+                    'Total ($itemCount item)',
                     style: TextStyle(
                       fontSize: 12,
                       color: kDarkGreen.withValues(alpha: 0.6),
