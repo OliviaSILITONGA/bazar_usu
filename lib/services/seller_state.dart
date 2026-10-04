@@ -26,12 +26,14 @@ class SellerProduct {
   String name;
   int price;
   String description;
+  String? imagePath;
 
   SellerProduct({
     required this.id,
     required this.name,
     required this.price,
     this.description = '',
+    this.imagePath,
   });
 }
 
@@ -166,12 +168,14 @@ class SellerAccountState {
     required String name,
     required int price,
     String description = '',
+    String? imagePath,
   }) {
     final product = SellerProduct(
       id: _nextId(),
       name: name,
       price: price,
       description: description,
+      imagePath: imagePath,
     );
     myProducts.value = [...myProducts.value, product];
   }

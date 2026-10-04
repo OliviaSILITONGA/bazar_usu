@@ -277,14 +277,26 @@ class _CartItemTile extends StatelessWidget {
               Container(
                 width: 64,
                 height: 64,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: kLightGreen,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.image_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.4),
-                ),
+                child: (item.image != null && item.image!.isNotEmpty)
+                    ? Image.asset(
+                        item.image!,
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.image_outlined,
+                          color: kDarkGreen.withValues(alpha: 0.4),
+                        ),
+                      )
+                    : Icon(
+                        Icons.image_outlined,
+                        color: kDarkGreen.withValues(alpha: 0.4),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(

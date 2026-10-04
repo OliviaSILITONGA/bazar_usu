@@ -20,12 +20,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   static const List<_PaymentOption> _payments = [
     _PaymentOption(icon: Icons.account_balance_wallet_outlined, label: 'Dana'),
     _PaymentOption(
-      icon: Icons.account_balance_outlined,
-      label: 'Transfer Bank',
-    ),
-    _PaymentOption(
       icon: Icons.payments_outlined,
       label: 'Bayar di Tempat (COD)',
+    ),
+    _PaymentOption(
+      icon: Icons.account_balance_outlined,
+      label: 'Bank Lain',
     ),
   ];
 
@@ -160,7 +160,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const SizedBox(height: 8),
+                  _OrderSummary(
+                    subtotal: widget.total,
+                    formatPrice: _formatPrice,
+                  ),
+                  const SizedBox(height: 16),
                   const Text(
                     'Metode Pembayaran',
                     style: TextStyle(
@@ -232,13 +236,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         );
                       }),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _OrderSummary(
-                    subtotal: widget.total,
-                    ongkir: _ongkir,
-                    total: _grandTotal,
-                    formatPrice: _formatPrice,
                   ),
                   const SizedBox(height: 100),
                 ],
@@ -391,14 +388,26 @@ class _CheckoutItemTile extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: kLightGreen,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  Icons.image_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.4),
-                ),
+                child: (item.image != null && item.image!.isNotEmpty)
+                    ? Image.asset(
+                        item.image!,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.image_outlined,
+                          color: kDarkGreen.withValues(alpha: 0.4),
+                        ),
+                      )
+                    : Icon(
+                        Icons.image_outlined,
+                        color: kDarkGreen.withValues(alpha: 0.4),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -442,14 +451,10 @@ class _CheckoutItemTile extends StatelessWidget {
 // ==================== RINGKASAN PESANAN ====================
 class _OrderSummary extends StatelessWidget {
   final int subtotal;
-  final int ongkir;
-  final int total;
   final String Function(int) formatPrice;
 
   const _OrderSummary({
     required this.subtotal,
-    required this.ongkir,
-    required this.total,
     required this.formatPrice,
   });
 
@@ -475,18 +480,8 @@ class _OrderSummary extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _SummaryRow(
-            label: 'Subtotal Produk',
+            label: 'Harga Produk',
             value: 'Rp${formatPrice(subtotal)}',
-          ),
-          const SizedBox(height: 6),
-          _SummaryRow(
-            label: 'Ongkos Kirim',
-            value: ongkir == 0 ? 'Gratis' : 'Rp${formatPrice(ongkir)}',
-          ),
-          const Divider(height: 20),
-          _SummaryRow(
-            label: 'Total',
-            value: 'Rp${formatPrice(total)}',
             bold: true,
           ),
         ],
@@ -562,9 +557,11 @@ class _CheckoutBottomBar extends StatelessWidget {
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min, // <-- perbaikan utama
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(

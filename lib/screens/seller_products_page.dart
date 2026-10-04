@@ -1,124 +1,20 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
+import 'add_edit_product_page.dart';
 
 class SellerProductsPage extends StatelessWidget {
   const SellerProductsPage({super.key});
 
-  Future<void> _openProductForm(
-    BuildContext context, {
-    SellerProduct? existing,
-  }) async {
-    final nameController = TextEditingController(text: existing?.name ?? '');
-    final priceController = TextEditingController(
-      text: existing != null ? existing.price.toString() : '',
-    );
-    final descController = TextEditingController(
-      text: existing?.description ?? '',
-    );
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  void _openProductForm(BuildContext context, {SellerProduct? existing}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddEditProductPage(existing: existing),
       ),
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                existing == null ? 'Tambah Produk' : 'Edit Produk',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: kDarkGreen,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _Label('Nama Produk'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameController,
-                decoration: _decoration('Contoh: Donat'),
-              ),
-              const SizedBox(height: 14),
-              _Label('Harga (Rp)'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: _decoration('Contoh: 4000'),
-              ),
-              const SizedBox(height: 14),
-              _Label('Deskripsi (opsional)'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: descController,
-                maxLines: 3,
-                decoration: _decoration('Deskripsi singkat produk...'),
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final name = nameController.text.trim();
-                    final price =
-                        int.tryParse(priceController.text.trim()) ?? 0;
-                    if (name.isEmpty || price <= 0) {
-                      ScaffoldMessenger.of(sheetContext).showSnackBar(
-                        const SnackBar(
-                          content: Text('Nama dan harga produk wajib diisi'),
-                        ),
-                      );
-                      return;
-                    }
-                    if (existing == null) {
-                      SellerAccountState.instance.addProduct(
-                        name: name,
-                        price: price,
-                        description: descController.text.trim(),
-                      );
-                    } else {
-                      SellerAccountState.instance.updateProduct(
-                        SellerProduct(
-                          id: existing.id,
-                          name: name,
-                          price: price,
-                          description: descController.text.trim(),
-                        ),
-                      );
-                    }
-                    Navigator.pop(sheetContext);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kDarkGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  child: Text(
-                    existing == null ? 'Tambah' : 'Simpan Perubahan',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -210,18 +106,7 @@ class SellerProductsPage extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: kLightGreen,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.image_outlined,
-                          color: kDarkGreen.withValues(alpha: 0.4),
-                        ),
-                      ),
+                      _ProductThumb(imagePath: product.imagePath),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -274,40 +159,39 @@ class SellerProductsPage extends StatelessWidget {
       ),
     );
   }
-
-  InputDecoration _decoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 12,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.3)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kDarkGreen, width: 2),
-      ),
-    );
-  }
 }
 
-class _Label extends StatelessWidget {
-  final String text;
-  const _Label(this.text);
+// ==================== THUMBNAIL FOTO PRODUK ====================
+class _ProductThumb extends StatelessWidget {
+  final String? imagePath;
+  const _ProductThumb({required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 12.5,
-        fontWeight: FontWeight.w600,
-        color: kDarkGreen,
+    final hasImage = imagePath != null && imagePath!.isNotEmpty;
+    return Container(
+      width: 52,
+      height: 52,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: kLightGreen,
+        borderRadius: BorderRadius.circular(10),
       ),
+      child: hasImage
+          ? Image.file(
+              File(imagePath!),
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.image_outlined,
+                color: kDarkGreen.withValues(alpha: 0.4),
+              ),
+            )
+          : Icon(
+              Icons.image_outlined,
+              color: kDarkGreen.withValues(alpha: 0.4),
+            ),
     );
   }
 }

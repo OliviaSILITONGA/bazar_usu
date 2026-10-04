@@ -5,6 +5,7 @@ import 'profile_page.dart';
 
 import '../constants.dart';
 import '../services/order_state.dart';
+import '../widgets/search_bar_field.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({super.key});
@@ -86,37 +87,9 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: kDarkGreen.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, color: kDarkGreen.withValues(alpha: 0.7)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                style: const TextStyle(fontSize: 14, color: kDarkGreen),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  hintText: 'Cari Pesanan Anda',
-                  hintStyle: TextStyle(
-                    color: kDarkGreen.withValues(alpha: 0.5),
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return SearchBarField(
+      controller: controller,
+      hintText: 'Cari Pesanan Anda',
     );
   }
 }

@@ -9,6 +9,7 @@ import 'notification_page.dart';
 import 'cart_page.dart';
 import 'product_detail_page.dart';
 import 'store_detail_page.dart';
+import '../widgets/search_bar_field.dart';
 
 class HomePageUser extends StatefulWidget {
   const HomePageUser({super.key});
@@ -85,69 +86,36 @@ class _SearchBar extends StatelessWidget {
     const int cartCount = 2;
     const int notifCount = 1;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                border: Border.all(color: kDarkGreen.withValues(alpha: 0.5)),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, color: kDarkGreen.withValues(alpha: 0.7)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      style: const TextStyle(fontSize: 14, color: kDarkGreen),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: 'Mau Makan Apa Hari Ini?',
-                        hintStyle: TextStyle(
-                          color: kDarkGreen.withValues(alpha: 0.5),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    return SearchBarField(
+      controller: controller,
+      hintText: 'Mau Makan Apa Hari Ini?',
+      trailing: [
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => NotificationPage()),
+            );
+          },
+          child: _IconWithBadge(
+            icon: Icons.notifications_none,
+            count: notifCount,
           ),
-          const SizedBox(width: 14),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => NotificationPage()),
-              );
-            },
-            child: _IconWithBadge(
-              icon: Icons.notifications_none,
-              count: notifCount,
-            ),
+        ),
+        const SizedBox(width: 14),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CartPage()),
+            );
+          },
+          child: _IconWithBadge(
+            icon: Icons.shopping_cart_outlined,
+            count: cartCount,
           ),
-          const SizedBox(width: 14),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => CartPage()),
-              );
-            },
-            child: _IconWithBadge(
-              icon: Icons.shopping_cart_outlined,
-              count: cartCount,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -4,6 +4,7 @@ class CartItem {
   final String storeName;
   final String description;
   final int price;
+  final String? image;
   int quantity;
   bool selected;
 
@@ -11,6 +12,7 @@ class CartItem {
     required this.storeName,
     required this.description,
     required this.price,
+    this.image,
     this.quantity = 1,
     this.selected = false,
   });
@@ -28,6 +30,7 @@ class CartState {
     required String storeName,
     required String description,
     required int price,
+    String? image,
     int quantity = 1,
   }) {
     final current = List<CartItem>.from(items.value);
@@ -42,6 +45,7 @@ class CartState {
           storeName: storeName,
           description: description,
           price: price,
+          image: image,
           quantity: quantity,
         ),
       );

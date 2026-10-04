@@ -4,6 +4,7 @@ import '../constants.dart';
 import '../services/favorite_products_state.dart';
 import 'chat_detail_page.dart';
 import '../services/cart_state.dart';
+import 'checkout_page.dart';
 
 class ReviewData {
   final int stars;
@@ -85,6 +86,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       storeName: widget.storeName,
       description: widget.name,
       price: widget.discountPrice,
+      image: widget.image,
       quantity: _quantity,
     );
     showDialog(
@@ -99,6 +101,25 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             child: const Text('Oke'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _buyNow() {
+    final item = CartItem(
+      storeName: widget.storeName,
+      description: widget.name,
+      price: widget.discountPrice,
+      image: widget.image,
+      quantity: _quantity,
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CheckoutPage(
+          items: [item],
+          total: widget.discountPrice * _quantity,
+        ),
       ),
     );
   }
@@ -237,6 +258,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               totalPrice: widget.discountPrice * _quantity,
               formatPrice: _formatPrice,
               onAddToCart: _addToCart,
+              onBuyNow: _buyNow,
             ),
           ),
         ],
@@ -493,6 +515,7 @@ class _BottomBar extends StatelessWidget {
   final int totalPrice;
   final String Function(int) formatPrice;
   final VoidCallback onAddToCart;
+  final VoidCallback onBuyNow;
 
   const _BottomBar({
     required this.quantity,
@@ -500,6 +523,7 @@ class _BottomBar extends StatelessWidget {
     required this.totalPrice,
     required this.formatPrice,
     required this.onAddToCart,
+    required this.onBuyNow,
   });
 
   @override
@@ -507,7 +531,7 @@ class _BottomBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -518,72 +542,121 @@ class _BottomBar extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black26),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: quantity > 1
-                        ? () => onQuantityChanged(quantity - 1)
-                        : null,
-                    icon: const Icon(Icons.remove, size: 18),
-                    color: Colors.black87,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Jumlah',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: kDarkGreen.withValues(alpha: 0.7),
                   ),
-                  Text(
-                    '$quantity',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => onQuantityChanged(quantity + 1),
-                    icon: const Icon(Icons.add, size: 18),
-                    color: Colors.black87,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: onAddToCart,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kDarkGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.black26),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Tambah ke Keranjang',
-                        style: TextStyle(
+                      IconButton(
+                        onPressed: quantity > 1
+                            ? () => onQuantityChanged(quantity - 1)
+                            : null,
+                        icon: const Icon(Icons.remove, size: 18),
+                        color: Colors.black87,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$quantity',
+                        style: const TextStyle(
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Rp${formatPrice(totalPrice)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        onPressed: () => onQuantityChanged(quantity + 1),
+                        icon: const Icon(Icons.add, size: 18),
+                        color: Colors.black87,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                SizedBox(
+                  width: 50,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: onAddToCart,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: kDarkGreen,
+                      side: const BorderSide(color: kDarkGreen, width: 1.4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.add_shopping_cart_outlined,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: onBuyNow,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDarkGreen,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Beli Sekarang',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: Colors.white.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Rp${formatPrice(totalPrice)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
