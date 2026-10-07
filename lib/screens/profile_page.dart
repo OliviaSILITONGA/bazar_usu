@@ -11,6 +11,7 @@ import 'login_screen.dart';
 import 'profile_view_page.dart';
 import 'edit_profile_page.dart';
 import 'help_page.dart';
+import 'report_page.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
@@ -225,9 +226,15 @@ class ProfilePage extends StatelessWidget {
                       );
                     },
                   ),
-                  const _MenuItemData(
+                  _MenuItemData(
                     icon: Icons.flag_outlined,
                     label: 'Laporkan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ReportPage()),
+                      );
+                    },
                   ),
                 ],
               ),

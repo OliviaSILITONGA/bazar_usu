@@ -14,301 +14,277 @@ const List<_AdminData> kAdmins = [
   _AdminData(name: 'SILI TONGA', phoneNumber: '6285762983801'),
 ];
 
+Future<void> _launchWhatsApp(
+  BuildContext context, {
+  required String phoneNumber,
+  required String message,
+}) async {
+  final uri = Uri.parse(
+    'https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}',
+  );
+  final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!launched && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Tidak bisa membuka WhatsApp. Pastikan WhatsApp terpasang di HP kamu.',
+        ),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+}
+
 class HelpPage extends StatelessWidget {
   const HelpPage({super.key});
-
-  Future<void> _openWhatsApp(BuildContext context, _AdminData admin) async {
-    final uri = Uri.parse(
-      'https://wa.me/${admin.phoneNumber}'
-      '?text=${Uri.encodeComponent('Halo ${admin.name}, saya mau bertanya seputar Bazar USU...')}',
-    );
-
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-
-    if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Tidak bisa membuka WhatsApp. Pastikan WhatsApp terpasang di HP kamu.',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ---------- Header ----------
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 16, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                    color: kDarkGreen,
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Bantuan',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 40),
-                ],
-              ),
-            ),
-            // ---------- Isi manual (scrollable) ----------
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                children: [
-                  const Text(
-                    'User Manual Bazar USU',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: kDarkGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  const _ManualSection(
-                    title: '1. Apa Itu Bazar USU?',
-                    children: [
-                      _Paragraph(
-                        'Bazar USU itu marketplace kuliner buat mahasiswa. Di sini kita bisa '
-                        'cari makanan lokal, minuman segar, sama jajanan favorit di sekitar '
-                        'kampus, terus langsung pesan dari HP. Banyak juga menu yang lagi '
-                        'promo, jadi lumayan hemat buat anak kos.',
-                      ),
-                    ],
-                  ),
-
-                  const _ManualSection(
-                    title: '2. Cara Mulai',
-                    children: [
-                      _NumberedItem(
-                        1,
-                        'Buka aplikasi Bazar USU di HP kamu. Gak perlu ribet.',
-                      ),
-                      _NumberedItem(
-                        2,
-                        'Lihat alamat antar di bagian paling atas (tulisan "Antar ke"). Pastikan alamatnya sudah benar sebelum pesan.',
-                      ),
-                      _NumberedItem(
-                        3,
-                        'Di bawahnya ada banner "Bazar USU AI" dan deretan kategori.',
-                      ),
-                      _NumberedItem(
-                        4,
-                        'Scroll ke bawah ke bagian "Rekomendasi Untukmu". Di situ ada menu-menu yang bisa dipilih.',
-                      ),
-                    ],
-                  ),
-
-                  _ManualSection(
-                    title: '3. Tombol di Bagian Bawah',
-                    children: [
-                      const _Paragraph(
-                        'Ada empat tombol yang selalu muncul di bawah layar:',
-                      ),
-                      const SizedBox(height: 10),
-                      _InfoTable(
-                        rows: const [
-                          ['Beranda', 'Balik ke halaman utama.'],
-                          [
-                            'Pencarian',
-                            'Cari menu atau penjual yang diinginkan.',
+        child: CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: _HeroHeader()),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ========== 1. FAQ ==========
+                    _SectionCard(
+                      icon: Icons.quiz_outlined,
+                      title: 'Pertanyaan Umum (FAQ)',
+                      children: const [
+                        _FaqCategory(
+                          title: 'Akun & Profil',
+                          items: [
+                            _FaqItem(
+                              'Bagaimana cara mendaftar akun di Bazar USU?',
+                              'Buka halaman Daftar, isi data diri (nama, email kampus, nomor HP), buat kata sandi, lalu verifikasi lewat email/OTP yang dikirim.',
+                            ),
+                            _FaqItem(
+                              'Saya lupa kata sandi, bagaimana cara menggantinya?',
+                              'Di halaman Login, tekan "Lupa Kata Sandi", masukkan email terdaftar, lalu ikuti instruksi reset yang dikirim ke email kamu.',
+                            ),
+                            _FaqItem(
+                              'Bagaimana cara jadi penjual (danusan)?',
+                              'Buka menu Profil > Beralih ke Akun Penjual, lalu lengkapi formulir pendaftaran toko. Admin akan meninjau dan memberi tahu status persetujuannya.',
+                            ),
                           ],
-                          [
-                            'Keranjang',
-                            'Lihat menu yang sudah dipilih. Angka kecil di ikonnya menunjukkan jumlah item.',
-                          ],
-                          ['Profil', 'Atur akun dan data diri.'],
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  const _ManualSection(
-                    title: '4. Kategori Menu',
-                    children: [
-                      _Paragraph(
-                        'Di bawah banner ada tombol kategori. Tinggal diketuk buat menyaring '
-                        'menu yang tampil:',
-                      ),
-                      SizedBox(height: 6),
-                      _BulletItem('Semua: menampilkan semua menu.'),
-                      _BulletItem('Promo Hari Ini: menu yang lagi diskon.'),
-                      _BulletItem(
-                        'Terdekat: penjual yang paling dekat dari alamat kita.',
-                      ),
-                      _BulletItem(
-                        'Terlaris: menu yang paling banyak dipesan orang.',
-                      ),
-                      _BulletItem(
-                        'Jajanan Lokal: martabak, pisang goreng, dan sejenisnya.',
-                      ),
-                      _BulletItem('Minuman Segar: kopi, teh, jus.'),
-                      _BulletItem(
-                        'Healthy Food: salad, gado-gado, dan menu sehat lainnya.',
-                      ),
-                    ],
-                  ),
-
-                  const _ManualSection(
-                    title: '5. Cara Baca Kartu Menu',
-                    children: [
-                      _Paragraph(
-                        'Setiap menu punya kartu yang isinya kira-kira begini:',
-                      ),
-                      SizedBox(height: 6),
-                      _BulletItem(
-                        'Foto makanan, lengkap dengan tulisan persen (contoh -34%) yang artinya diskon.',
-                      ),
-                      _BulletItem(
-                        'Angka bintang (contoh 4.8) adalah rating dari pembeli. Makin tinggi makin bagus.',
-                      ),
-                      _BulletItem(
-                        'Nama penjual dan jenis makanannya, contoh: Geprek Juara, Ayam & Sambal.',
-                      ),
-                      _BulletItem(
-                        'Waktu dan jarak (contoh 15-20 min, 1.2 km) adalah perkiraan makanan siap dan jarak penjual dari kita.',
-                      ),
-                      _BulletItem(
-                        'Dua harga: yang dicoret harga asli, satunya lagi harga setelah diskon.',
-                      ),
-                      _BulletItem(
-                        'Tombol "Tambah" buat memasukkan menu ke keranjang.',
-                      ),
-                    ],
-                  ),
-
-                  _ManualSection(
-                    title: '6. Contoh Menu yang Ada',
-                    children: [
-                      const _Paragraph(
-                        'Beberapa menu yang tersedia di halaman utama:',
-                      ),
-                      const SizedBox(height: 10),
-                      _InfoTable(
-                        rows: const [
-                          [
-                            'Ayam & Sambal',
-                            'Ayam Geprek Mozzarella, Ayam Bakar Taliwang',
-                          ],
-                          [
-                            'Minuman',
-                            'Es Kopi Susu Gula Aren, Thai Tea Original, Iced Matcha Latte',
-                          ],
-                          [
-                            'Masakan Rumahan',
-                            'Nasi Goreng Kampung, Soto Ayam Lamongan, Nasi Rendang Padang',
-                          ],
-                          [
-                            'Bakso & Mie',
-                            'Bakso Urat Jumbo, Mie Ayam Ceker Special',
-                          ],
-                          [
-                            'Jajanan',
-                            'Martabak Manis Coklat Keju, Pisang Goreng Keju Coklat, Dimsum Ayam Komplit',
-                          ],
-                          [
-                            'Sehat & Segar',
-                            'Salad Buah Segar, Gado-Gado Jakarta, Jus Alpukat Coklat',
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Menu dan harga bisa berubah sewaktu-waktu, jadi lihat langsung di aplikasinya ya.',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontStyle: FontStyle.italic,
-                          color: kDarkGreen.withValues(alpha: 0.65),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const _ManualSection(
-                    title: '7. Cara Pesan',
-                    children: [
-                      _NumberedItem(
-                        1,
-                        'Pilih menu yang diinginkan, bisa lewat kategori atau langsung scroll.',
-                      ),
-                      _NumberedItem(
-                        2,
-                        'Tekan tombol "Tambah". Menu otomatis masuk ke keranjang. Kalau mau menu lain, tinggal tekan "Tambah" lagi di menu itu.',
-                      ),
-                      _NumberedItem(
-                        3,
-                        'Buka "Keranjang" di tombol bawah. Cek lagi pesanan dan total harganya.',
-                      ),
-                      _NumberedItem(
-                        4,
-                        'Kalau sudah pas, ikuti langkah di layar buat konfirmasi pesanan.',
-                      ),
-                      _NumberedItem(
-                        5,
-                        'Tunggu makanan diantar ke alamat yang tertera di bagian atas.',
-                      ),
-                      SizedBox(height: 10),
-                      _Paragraph(
-                        'Catatan: kalau keranjang masih kosong, akan muncul tulisan "Keranjangmu '
-                        'masih kosong". Kalau pesan dari beberapa penjual sekaligus, waktu '
-                        'sampainya bisa beda-beda tergantung jaraknya.',
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 28),
-                  Divider(color: kDarkGreen.withValues(alpha: 0.15)),
-                  const SizedBox(height: 20),
-
-                  // ---------- Kontak Admin WhatsApp ----------
-                  const Text(
-                    'Masih Butuh Bantuan?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: kDarkGreen,
+                        _FaqCategory(
+                          title: 'Pemesanan & Transaksi',
+                          items: [
+                            _FaqItem(
+                              'Bagaimana cara melakukan pemesanan?',
+                              'Pilih produk, tekan "Tambah" untuk masuk ke keranjang, lalu buka Keranjang dan ikuti langkah checkout.',
+                            ),
+                            _FaqItem(
+                              'Bisakah saya membatalkan pesanan?',
+                              'Bisa, selama penjual belum memproses pesanan. Buka halaman Pesanan Saya, pilih pesanan terkait, lalu tekan Batalkan.',
+                            ),
+                            _FaqItem(
+                              'Berapa lama batas waktu konfirmasi pesanan oleh penjual?',
+                              'Penjual wajib mengonfirmasi pesanan dalam 1x24 jam. Jika tidak ada respon, pesanan otomatis bisa dibatalkan.',
+                            ),
+                          ],
+                        ),
+                        _FaqCategory(
+                          title: 'Pembayaran',
+                          items: [
+                            _FaqItem(
+                              'Metode pembayaran apa saja yang didukung?',
+                              'QRIS, transfer bank, dan Cash on Delivery (COD) saat ambil/terima pesanan.',
+                            ),
+                            _FaqItem(
+                              'Bagaimana cara konfirmasi bukti pembayaran?',
+                              'Setelah transfer, unggah bukti bayar di halaman detail pesanan agar penjual bisa memverifikasi.',
+                            ),
+                          ],
+                        ),
+                        _FaqCategory(
+                          title: 'Pengambilan / Pengiriman',
+                          items: [
+                            _FaqItem(
+                              'Di mana titik temu untuk COD?',
+                              'Lokasi titik temu biasanya di area stand penjual di sekitar kampus, tertera di detail toko/pesanan.',
+                            ),
+                            _FaqItem(
+                              'Apakah ada pengantaran ke lokasi di dalam kampus?',
+                              'Beberapa penjual menyediakan opsi antar di area kampus dengan biaya tambahan, tergantung kebijakan masing-masing toko.',
+                            ),
+                            _FaqItem(
+                              'Jam berapa stand biasanya buka?',
+                              'Jam operasional berbeda tiap penjual, bisa dicek di halaman profil toko masing-masing.',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Kalau manual di atas belum menjawab pertanyaan kamu, langsung hubungi admin kami lewat WhatsApp.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: kDarkGreen.withValues(alpha: 0.7),
-                      height: 1.4,
+                    const SizedBox(height: 14),
+
+                    // ========== 2. PANDUAN PENGGUNAAN ==========
+                    _SectionCard(
+                      icon: Icons.menu_book_outlined,
+                      title: 'Panduan Penggunaan',
+                      children: [
+                        _SubHeading('Panduan Pembeli'),
+                        const _NumberedItem(
+                          1,
+                          'Buka aplikasi Bazar USU. Cek alamat antar di bagian atas ("Antar ke") sebelum pesan.',
+                        ),
+                        const _NumberedItem(
+                          2,
+                          'Cari menu lewat kategori (Semua, Promo, Terdekat, Terlaris, dll) atau scroll di beranda.',
+                        ),
+                        const _NumberedItem(
+                          3,
+                          'Tekan "Tambah" pada menu yang diinginkan — otomatis masuk ke Keranjang.',
+                        ),
+                        const _NumberedItem(
+                          4,
+                          'Buka "Keranjang", cek pesanan dan total harga, lalu ikuti langkah checkout.',
+                        ),
+                        const _NumberedItem(
+                          5,
+                          'Pantau status pesanan sampai makanan diantar/siap diambil.',
+                        ),
+                        const SizedBox(height: 16),
+                        _SubHeading('Panduan Penjual'),
+                        const _NumberedItem(
+                          1,
+                          'Buka menu Profil, lalu tekan "Beralih ke Akun Penjual".',
+                        ),
+                        const _NumberedItem(
+                          2,
+                          'Isi formulir pendaftaran toko (nama toko, kategori, kontak) dan tunggu persetujuan admin.',
+                        ),
+                        const _NumberedItem(
+                          3,
+                          'Setelah disetujui, buka Dashboard Penjual untuk mulai mengunggah produk.',
+                        ),
+                        const _NumberedItem(
+                          4,
+                          'Tekan "Tambah Produk", isi nama, harga, foto, deskripsi, dan kategori.',
+                        ),
+                        const _NumberedItem(
+                          5,
+                          'Atur stok atau kuota pre-order (PO) kalau produk dijual dengan sistem PO.',
+                        ),
+                        const _NumberedItem(
+                          6,
+                          'Pantau pesanan masuk di Dashboard, lalu proses sesuai statusnya (Diterima → Diproses → Selesai).',
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  ...kAdmins.map(
-                    (admin) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _AdminWhatsAppButton(
-                        admin: admin,
-                        onTap: () => _openWhatsApp(context, admin),
-                      ),
+                    const SizedBox(height: 14),
+
+                    // ========== 3. KONTAK & DUKUNGAN ==========
+                    _SectionCard(
+                      icon: Icons.support_agent_outlined,
+                      title: 'Layanan Kontak & Dukungan',
+                      initiallyExpanded: true,
+                      children: [
+                        _SubHeading('Kontak Admin'),
+                        const SizedBox(height: 4),
+                        ...kAdmins.map(
+                          (admin) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _AdminWhatsAppButton(
+                              admin: admin,
+                              onTap: () => _launchWhatsApp(
+                                context,
+                                phoneNumber: admin.phoneNumber,
+                                message:
+                                    'Halo ${admin.name}, saya mau bertanya seputar Bazar USU...',
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _SubHeading('Jam Operasional Layanan'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Admin aktif membalas pesan setiap Senin–Jumat, pukul 08.00–20.00 WIB. '
+                          'Di luar jam tersebut, balasan bisa lebih lama.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: kDarkGreen.withValues(alpha: 0.8),
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _SubHeading('Formulir Laporan Kendala'),
+                        const SizedBox(height: 8),
+                        const _ComplaintFormCard(),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+
+                    // ========== 4. KEBIJAKAN & KETENTUAN ==========
+                    _SectionCard(
+                      icon: Icons.gavel_outlined,
+                      title: 'Kebijakan & Ketentuan Platform',
+                      children: const [
+                        _SubHeading('Syarat & Ketentuan (T&C)'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Setiap pengguna wajib mendaftar menggunakan data yang valid dan email aktif.',
+                        ),
+                        _BulletItem(
+                          'Penjual bertanggung jawab atas kebenaran informasi produk yang diunggah (harga, stok, foto).',
+                        ),
+                        _BulletItem(
+                          'Transaksi di luar platform (di luar kesepakatan yang tercatat) bukan tanggung jawab Bazar USU.',
+                        ),
+                        _BulletItem(
+                          'Admin berhak menonaktifkan akun yang melanggar ketentuan penggunaan.',
+                        ),
+                        SizedBox(height: 14),
+                        _SubHeading('Kebijakan Pembatalan & Pengembalian'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Pembeli bisa membatalkan pesanan sebelum dikonfirmasi penjual tanpa dikenai sanksi.',
+                        ),
+                        _BulletItem(
+                          'Jika stok produk ternyata habis, penjual wajib menginformasikan dan membatalkan pesanan tersebut.',
+                        ),
+                        _BulletItem(
+                          'Pengembalian dana (refund) untuk pembayaran non-tunai diproses sesuai kebijakan metode pembayaran terkait.',
+                        ),
+                        _BulletItem(
+                          'Produk yang tidak sesuai pesanan bisa dilaporkan lewat Formulir Laporan Kendala di atas.',
+                        ),
+                        SizedBox(height: 14),
+                        _SubHeading('Panduan Komunitas / Etika'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Produk yang dijual harus legal dan sesuai aturan kampus (makanan, minuman, jajanan, kebutuhan mahasiswa).',
+                        ),
+                        _BulletItem(
+                          'Dilarang menjual barang terlarang, berbahaya, atau melanggar hukum.',
+                        ),
+                        _BulletItem(
+                          'Jaga komunikasi yang sopan antara pembeli dan penjual.',
+                        ),
+                        _BulletItem(
+                          'Laporkan akun atau transaksi mencurigakan lewat fitur Laporkan di halaman Profil.',
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Kebijakan ini masih bisa disesuaikan mengikuti aturan resmi dari pihak kampus/penyelenggara.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -318,48 +294,244 @@ class HelpPage extends StatelessWidget {
   }
 }
 
-// ==================== WIDGET-WIDGET PEMBANTU ====================
-
-class _ManualSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _ManualSection({required this.title, required this.children});
+// ==================== HERO HEADER (background foto + logo) ====================
+class _HeroHeader extends StatelessWidget {
+  const _HeroHeader();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 230,
+      width: double.infinity,
+      child: Stack(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: kDarkGreen,
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/hero_food.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: kLightGreen),
             ),
           ),
-          const SizedBox(height: 8),
-          ...children,
+          // gradient supaya foto memudar ke warna background halaman
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [kBg.withValues(alpha: 0.25), kBg],
+                  stops: const [0.0, 0.92],
+                ),
+              ),
+            ),
+          ),
+          // tombol kembali
+          Positioned(
+            top: 8,
+            left: 8,
+            child: _CircleIconButton(
+              icon: Icons.arrow_back_ios_new,
+              onTap: () => Navigator.pop(context),
+            ),
+          ),
+          // logo + judul
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 18,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.asset(
+                    'assets/icon/icon.png',
+                    width: 75,
+                    height: 75,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 75,
+                      height: 75,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.storefront, color: kDarkGreen),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Pusat Bantuan',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: kDarkGreen,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'FAQ, panduan, dan kontak admin Bazar USU',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: kDarkGreen.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _Paragraph extends StatelessWidget {
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: kDarkGreen),
+      ),
+    );
+  }
+}
+
+// ==================== KARTU SECTION (bisa dibuka/tutup) ====================
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          iconColor: kDarkGreen,
+          collapsedIconColor: kDarkGreen,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+          leading: Icon(icon, color: kDarkGreen, size: 22),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.bold,
+              color: kDarkGreen,
+            ),
+          ),
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== FAQ ====================
+class _FaqItem {
+  final String question;
+  final String answer;
+  const _FaqItem(this.question, this.answer);
+}
+
+class _FaqCategory extends StatelessWidget {
+  final String title;
+  final List<_FaqItem> items;
+  const _FaqCategory({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SubHeading(title),
+          const SizedBox(height: 6),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.question,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.answer,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: kDarkGreen.withValues(alpha: 0.75),
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubHeading extends StatelessWidget {
   final String text;
-  const _Paragraph(this.text);
+  const _SubHeading(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 13,
-        color: kDarkGreen.withValues(alpha: 0.8),
-        height: 1.5,
+        fontSize: 12.5,
+        fontWeight: FontWeight.bold,
+        color: kDarkGreen.withValues(alpha: 0.9),
+        letterSpacing: 0.2,
       ),
     );
   }
@@ -373,7 +545,7 @@ class _NumberedItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 6, top: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -436,66 +608,7 @@ class _BulletItem extends StatelessWidget {
   }
 }
 
-/// Tabel sederhana 2 kolom (judul kiri tebal, keterangan kanan)
-class _InfoTable extends StatelessWidget {
-  final List<List<String>> rows;
-  const _InfoTable({required this.rows});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        children: List.generate(rows.length, (index) {
-          final row = rows[index];
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 92,
-                      child: Text(
-                        row[0],
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                          color: kDarkGreen,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        row[1],
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: kDarkGreen.withValues(alpha: 0.75),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (index != rows.length - 1)
-                Divider(height: 1, color: kDarkGreen.withValues(alpha: 0.08)),
-            ],
-          );
-        }),
-      ),
-    );
-  }
-}
-
+// ==================== TOMBOL WHATSAPP ADMIN ====================
 class _AdminWhatsAppButton extends StatelessWidget {
   final _AdminData admin;
   final VoidCallback onTap;
@@ -548,6 +661,105 @@ class _AdminWhatsAppButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ==================== FORMULIR LAPORAN KENDALA ====================
+class _ComplaintFormCard extends StatefulWidget {
+  const _ComplaintFormCard();
+
+  @override
+  State<_ComplaintFormCard> createState() => _ComplaintFormCardState();
+}
+
+class _ComplaintFormCardState extends State<_ComplaintFormCard> {
+  final _subjectController = TextEditingController();
+  final _descriptionController = TextEditingController();
+
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _decoration(String hint) => InputDecoration(
+    isDense: true,
+    hintText: hint,
+    hintStyle: const TextStyle(fontSize: 12.5),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.3)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: kDarkGreen, width: 2),
+    ),
+  );
+
+  void _submit() {
+    final subject = _subjectController.text.trim();
+    final description = _descriptionController.text.trim();
+
+    if (subject.isEmpty || description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Subjek dan deskripsi kendala wajib diisi!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final message =
+        'Halo Admin, saya ingin melaporkan kendala:\n\n'
+        'Subjek: $subject\n'
+        'Deskripsi: $description';
+
+    _launchWhatsApp(
+      context,
+      phoneNumber: kAdmins.first.phoneNumber,
+      message: message,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _subjectController,
+          decoration: _decoration('Subjek (misal: Pesanan tidak sesuai)'),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _descriptionController,
+          maxLines: 3,
+          decoration: _decoration('Jelaskan kendala yang kamu alami...'),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _submit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kDarkGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.send, size: 16),
+            label: const Text('Kirim Laporan via WhatsApp'),
+          ),
+        ),
+      ],
     );
   }
 }
