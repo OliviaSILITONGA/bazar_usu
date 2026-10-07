@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
+import '../services/seller_profile_extra_state.dart';
 import 'login_screen.dart';
 import 'main_navigation_page.dart';
+import 'seller_profile_view_page.dart';
+import 'seller_edit_profile_page.dart';
 
 class SellerProfilePage extends StatelessWidget {
   const SellerProfilePage({super.key});
@@ -12,9 +15,7 @@ class SellerProfilePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Beralih ke Akun Pembeli'),
         content: const Text(
           'Kamu akan kembali ke tampilan pembeli. Toko dan produk kamu '
@@ -63,59 +64,116 @@ class SellerProfilePage extends StatelessWidget {
               ValueListenableBuilder<SellerApplication?>(
                 valueListenable: state.myApplication,
                 builder: (context, app, _) {
-                  return Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: kLightGreen,
-                            border: Border.all(
-                              color: kDarkGreen.withValues(alpha: 0.3),
+                  return ValueListenableBuilder<SellerProfileExtra>(
+                    valueListenable: SellerProfileExtraState.instance.data,
+                    builder: (context, extra, __) {
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: kDarkGreen.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const SellerProfileViewPage(),
+                                    ),
+                                  );
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: kLightGreen,
+                                        border: Border.all(
+                                          color: kDarkGreen.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                        ),
+                                        image: extra.photo != null
+                                            ? DecorationImage(
+                                                image: FileImage(extra.photo!),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: extra.photo == null
+                                          ? Icon(
+                                              Icons.storefront,
+                                              color: kDarkGreen.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                              size: 26,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            app?.namaToko ?? 'Toko Kamu',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: kDarkGreen,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            app?.kategori ?? '-',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: kDarkGreen.withValues(
+                                                alpha: 0.65,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Icon(
-                            Icons.storefront,
-                            color: kDarkGreen.withValues(alpha: 0.7),
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                app?.namaToko ?? 'Toko Kamu',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: kDarkGreen,
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const SellerEditProfilePage(),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  color: kDarkGreen.withValues(alpha: 0.6),
+                                  size: 20,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                app?.kategori ?? '-',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: kDarkGreen.withValues(alpha: 0.65),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -180,7 +238,10 @@ class _ProfileMenuTile extends StatelessWidget {
             Icon(icon, size: 20, color: color.withValues(alpha: 0.85)),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(label, style: TextStyle(fontSize: 13.5, color: color)),
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 13.5, color: color),
+              ),
             ),
             if (!isDestructive)
               Icon(

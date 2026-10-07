@@ -23,6 +23,7 @@ class ProductDetailPage extends StatefulWidget {
   final int kcal;
   final String description;
   final String image;
+  final List<ReviewData> reviews;
 
   const ProductDetailPage({
     super.key,
@@ -36,6 +37,10 @@ class ProductDetailPage extends StatefulWidget {
     required this.kcal,
     required this.description,
     this.image = '',
+    this.reviews = const [
+      ReviewData(stars: 5, comment: 'Produknya enak, sesuai deskripsi!'),
+      ReviewData(stars: 4, comment: 'Pengiriman cepat, kualitas oke.'),
+    ],
   });
 
   @override
@@ -44,14 +49,6 @@ class ProductDetailPage extends StatefulWidget {
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _quantity = 1;
-
-  static const List<ReviewData> _reviews = [
-    ReviewData(stars: 5, comment: 'Ayam Gepreknya pedes nampol, porsinya pas!'),
-    ReviewData(
-      stars: 4,
-      comment: 'Nasi Rendangnya enak banget, tapi sayang porsinya agak kecil.',
-    ),
-  ];
 
   bool get _isFavorited => FavoriteProductsState.instance.products.value.any(
     (p) => p.storeName == widget.storeName && p.description == widget.name,
@@ -135,133 +132,121 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ProductPhoto(
-                  image: widget.image,
-                  onClose: () => Navigator.pop(context),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                  child: Column(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ProductPhoto(
+              image: widget.image,
+              onClose: () => Navigator.pop(context),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _RatingRow(
+                    rating: widget.rating,
+                    reviewCount: widget.reviewCount,
+                    prepTime: widget.prepTime,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _RatingRow(
-                        rating: widget.rating,
-                        reviewCount: widget.reviewCount,
-                        prepTime: widget.prepTime,
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.name,
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.storeName,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: kDarkGreen,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: _toggleFavorite,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.redAccent.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: Icon(
-                                _isFavorited
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: Colors.redAccent,
-                                size: 22,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.name,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.storeName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: kDarkGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: _toggleFavorite,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.redAccent.withValues(alpha: 0.5),
+                            ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _KcalAndPriceRow(
-                        kcal: widget.kcal,
-                        originalPrice: widget.originalPrice,
-                        discountPrice: widget.discountPrice,
-                        formatPrice: _formatPrice,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.description,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _ChatButton(onTap: _openChatWithSeller),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Ulasan Makanan',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ..._reviews.map(
-                        (r) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _ReviewBubble(review: r),
+                          child: Icon(
+                            _isFavorited
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: Colors.redAccent,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  _KcalAndPriceRow(
+                    kcal: widget.kcal,
+                    originalPrice: widget.originalPrice,
+                    discountPrice: widget.discountPrice,
+                    formatPrice: _formatPrice,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.description,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _ChatButton(onTap: _openChatWithSeller),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Ulasan Makanan',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...widget.reviews.map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ReviewBubble(review: r),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _BottomBar(
-              quantity: _quantity,
-              onQuantityChanged: (q) => setState(() => _quantity = q),
-              totalPrice: widget.discountPrice * _quantity,
-              formatPrice: _formatPrice,
-              onAddToCart: _addToCart,
-              onBuyNow: _buyNow,
-            ),
-          ),
-        ],
+          ],
+        ),
+      ),
+      bottomNavigationBar: _BottomBar(
+        quantity: _quantity,
+        onQuantityChanged: (q) => setState(() => _quantity = q),
+        totalPrice: widget.discountPrice * _quantity,
+        formatPrice: _formatPrice,
+        onAddToCart: _addToCart,
+        onBuyNow: _buyNow,
       ),
     );
   }

@@ -12,6 +12,7 @@ import 'profile_view_page.dart';
 import 'edit_profile_page.dart';
 import 'help_page.dart';
 import 'report_page.dart';
+import 'settings_page.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
@@ -212,9 +213,15 @@ class ProfilePage extends StatelessWidget {
               _MenuSection(
                 title: 'Lainnya',
                 items: [
-                  const _MenuItemData(
+                  _MenuItemData(
                     icon: Icons.settings_outlined,
                     label: 'Pengaturan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      );
+                    },
                   ),
                   _MenuItemData(
                     icon: Icons.help_outline,

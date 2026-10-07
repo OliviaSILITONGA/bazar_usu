@@ -28,27 +28,27 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   static const List<ChatItemData> _allChats = [
     ChatItemData(
+      name: 'KMK Ilmu Komputer',
+      lastMessage: 'Pesanannya dah sampai...',
+      time: '1mnt',
+    ),
+    ChatItemData(
       name: 'KMK Teknik Kimia',
       lastMessage: 'Pesanannya dah sampai...',
       time: '1mnt',
     ),
     ChatItemData(
-      name: 'Olivia',
-      lastMessage: 'Pesanannya dah sampai...',
-      time: '1mnt',
-    ),
-    ChatItemData(
       name: 'Yana',
       lastMessage: 'Pesanan dengan nomor resi...',
       time: '2hari',
     ),
     ChatItemData(
-      name: 'UKM Paduan Suara ULOS USU',
+      name: 'UKM Paduan Suara ULOS',
       lastMessage: 'Pesanannya dah sampai...',
       time: '1mnt',
     ),
     ChatItemData(
-      name: 'Yana',
+      name: 'UKM AISEC',
       lastMessage: 'Pesanan dengan nomor resi...',
       time: '2hari',
     ),
@@ -58,7 +58,7 @@ class _ChatListPageState extends State<ChatListPage> {
       time: '1mnt',
     ),
     ChatItemData(
-      name: 'Yana',
+      name: 'SILI TONGA',
       lastMessage: 'Pesanan dengan nomor resi...',
       time: '2hari',
     ),

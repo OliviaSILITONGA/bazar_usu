@@ -20,6 +20,13 @@ class HomePageUser extends StatefulWidget {
 
 class _HomePageUserState extends State<HomePageUser> {
   final TextEditingController _searchController = TextEditingController();
+  String? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -27,8 +34,32 @@ class _HomePageUserState extends State<HomePageUser> {
     super.dispose();
   }
 
+  void _onCategorySelected(String category) {
+    setState(() {
+      _selectedCategory = _selectedCategory == category ? null : category;
+    });
+  }
+
+  List<ProductData> get _filteredProducts {
+    final query = _searchController.text.trim().toLowerCase();
+    return kAllProducts.where((p) {
+      final matchesQuery =
+          query.isEmpty ||
+          p.name.toLowerCase().contains(query) ||
+          p.seller.toLowerCase().contains(query);
+      final matchesCategory =
+          _selectedCategory == null || p.category == _selectedCategory;
+      return matchesQuery && matchesCategory;
+    }).toList();
+  }
+
+  bool get _isFiltering =>
+      _searchController.text.trim().isNotEmpty || _selectedCategory != null;
+
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredProducts;
+
     return Scaffold(
       backgroundColor: kBg,
       body: Stack(
@@ -41,17 +72,32 @@ class _HomePageUserState extends State<HomePageUser> {
                   const SizedBox(height: 12),
                   _SearchBar(controller: _searchController),
                   const SizedBox(height: 20),
-                  const _CategoryRow(),
+                  _CategoryRow(
+                    selectedCategory: _selectedCategory,
+                    onSelected: _onCategorySelected,
+                  ),
                   const SizedBox(height: 20),
-                  const _PromoBanner(),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(title: 'Produk Favorite'),
-                  const SizedBox(height: 12),
-                  const _FavoriteGrid(),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(title: 'Bazar Favorit'),
-                  const SizedBox(height: 14),
-                  const _PopularStoresRow(),
+                  if (_isFiltering) ...[
+                    _SectionTitle(
+                      title: _selectedCategory != null
+                          ? 'Kategori: $_selectedCategory (${filtered.length})'
+                          : 'Hasil Pencarian (${filtered.length})',
+                    ),
+                    const SizedBox(height: 12),
+                    filtered.isEmpty
+                        ? const _EmptySearchResult()
+                        : _ProductGrid(products: filtered),
+                  ] else ...[
+                    const _PromoBanner(),
+                    const SizedBox(height: 24),
+                    const _SectionTitle(title: 'Produk Favorite'),
+                    const SizedBox(height: 12),
+                    _ProductGrid(products: kAllProducts),
+                    const SizedBox(height: 24),
+                    const _SectionTitle(title: 'Bazar Favorit'),
+                    const SizedBox(height: 14),
+                    const _PopularStoresRow(),
+                  ],
                   const SizedBox(height: 100),
                 ],
               ),
@@ -159,15 +205,21 @@ class _IconWithBadge extends StatelessWidget {
   }
 }
 
-// ==================== KATEGORI ====================
+// ==================== KATEGORI (SEKARANG BISA DITEKAN) ====================
 class _CategoryRow extends StatelessWidget {
-  const _CategoryRow();
+  final String? selectedCategory;
+  final ValueChanged<String> onSelected;
+
+  const _CategoryRow({
+    required this.selectedCategory,
+    required this.onSelected,
+  });
 
   static const List<_CategoryData> _categories = [
     _CategoryData(icon: Icons.set_meal_outlined, label: 'Makanan'),
     _CategoryData(icon: Icons.local_drink_outlined, label: 'Minuman'),
     _CategoryData(icon: Icons.cookie_outlined, label: 'Jajanan'),
-    _CategoryData(icon: Icons.inventory_2_outlined, label: 'Lainnya...'),
+    _CategoryData(icon: Icons.inventory_2_outlined, label: 'Lainnya'),
   ];
 
   @override
@@ -176,7 +228,15 @@ class _CategoryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: _categories.map((c) => _CategoryItem(data: c)).toList(),
+        children: _categories
+            .map(
+              (c) => _CategoryItem(
+                data: c,
+                isSelected: selectedCategory == c.label,
+                onTap: () => onSelected(c.label),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -190,28 +250,48 @@ class _CategoryData {
 
 class _CategoryItem extends StatelessWidget {
   final _CategoryData data;
-  const _CategoryItem({required this.data});
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _CategoryItem({
+    required this.data,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: kLightGreen,
-            border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isSelected ? kDarkGreen : kLightGreen,
+              border: Border.all(
+                color: kDarkGreen.withValues(alpha: isSelected ? 1 : 0.3),
+              ),
+            ),
+            child: Icon(
+              data.icon,
+              color: isSelected ? Colors.white : kDarkGreen,
+              size: 26,
+            ),
           ),
-          child: Icon(data.icon, color: kDarkGreen, size: 26),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          data.label,
-          style: const TextStyle(fontSize: 12, color: kDarkGreen),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            data.label,
+            style: TextStyle(
+              fontSize: 12,
+              color: kDarkGreen,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -233,6 +313,13 @@ class _PromoBanner extends StatelessWidget {
             price: 'Rp 15.000',
             seller: 'Kedai Kak Wati',
             image: 'assets/products/nasi_ayam_penyet.png',
+            reviews: [
+              ReviewData(stars: 5, comment: 'Porsinya besar, mengenyangkan!'),
+              ReviewData(
+                stars: 4,
+                comment: 'Rasanya autentik, sambalnya mantap.',
+              ),
+            ],
           ),
           SizedBox(width: 12),
           _PromoCard(
@@ -240,6 +327,10 @@ class _PromoBanner extends StatelessWidget {
             price: 'Rp 3.000',
             seller: 'Toko Roti',
             image: 'assets/products/donat_coklat.png',
+            reviews: [
+              ReviewData(stars: 5, comment: 'Coklatnya melimpah, enak banget!'),
+              ReviewData(stars: 4, comment: 'Teksturnya lembut dan empuk.'),
+            ],
           ),
         ],
       ),
@@ -252,11 +343,14 @@ class _PromoCard extends StatelessWidget {
   final String price;
   final String seller;
   final String image;
+  final List<ReviewData> reviews;
+
   const _PromoCard({
     required this.title,
     required this.price,
     required this.seller,
     required this.image,
+    required this.reviews,
   });
 
   int _priceToInt(String priceText) {
@@ -346,6 +440,7 @@ class _PromoCard extends StatelessWidget {
                       kcal: 250,
                       description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
                       image: image,
+                      reviews: reviews,
                     ),
                   ),
                 );
@@ -397,48 +492,104 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ==================== GRID PRODUK FAVORIT ====================
-class _FavoriteGrid extends StatelessWidget {
-  const _FavoriteGrid();
+// ==================== DATASET PRODUK (DIPAKAI UNTUK GRID & PENCARIAN) ====================
+class ProductData {
+  final String name;
+  final String price;
+  final String seller;
+  final String image;
+  final String category;
+  final List<ReviewData> reviews;
 
-  static const List<_ProductData> _products = [
-    _ProductData(
-      name: 'Ayam Penyet',
-      price: 'Rp 15.000',
-      seller: 'Kedai ciau',
-      image: 'assets/products/nasi_ayam_penyet.png',
-    ),
-    _ProductData(
-      name: 'Teh Manis Dingin',
-      price: 'Rp 5.000',
-      seller: 'Kedai Kak Wati',
-      image: 'assets/products/teh_manis_dingin.png',
-    ),
-    _ProductData(
-      name: 'Donat',
-      price: 'Rp 4.000',
-      seller: 'Kedai ciau',
-      image: 'assets/products/donat_coklat.png',
-    ),
-    _ProductData(
-      name: 'Kue Kering',
-      price: 'Rp 8.000',
-      seller: 'Olip Bakery',
-      image: 'assets/products/kue_kering.png',
-    ),
-    _ProductData(
-      name: 'Alat Tulis',
-      price: 'Rp 10.000',
-      seller: 'FKB',
-      image: 'assets/products/alat_tulis.jfif',
-    ),
-    _ProductData(
-      name: 'Kue Kering',
-      price: 'Rp 8.000',
-      seller: 'Olip Bakery,',
-      image: 'assets/products/kue_kering.png',
-    ),
-  ];
+  const ProductData({
+    required this.name,
+    required this.price,
+    required this.seller,
+    required this.image,
+    required this.category,
+    required this.reviews,
+  });
+}
+
+const List<ProductData> kAllProducts = [
+  ProductData(
+    name: 'Ayam Penyet',
+    price: 'Rp 15.000',
+    seller: 'Kedai ciau',
+    image: 'assets/products/nasi_ayam_penyet.png',
+    category: 'Makanan',
+    reviews: [
+      ReviewData(
+        stars: 5,
+        comment: 'Ayam Gepreknya pedes nampol, porsinya pas!',
+      ),
+      ReviewData(stars: 5, comment: 'Sambelnya nampol banget, favorit saya!'),
+    ],
+  ),
+  ProductData(
+    name: 'Teh Manis Dingin',
+    price: 'Rp 5.000',
+    seller: 'Kedai Kak Wati',
+    image: 'assets/products/teh_manis_dingin.png',
+    category: 'Minuman',
+    reviews: [
+      ReviewData(stars: 5, comment: 'Seger banget buat cuaca panas!'),
+      ReviewData(stars: 4, comment: 'Manisnya pas, gak terlalu enek.'),
+    ],
+  ),
+  ProductData(
+    name: 'Donat',
+    price: 'Rp 4.000',
+    seller: 'Kedai ciau',
+    image: 'assets/products/donat_coklat.png',
+    category: 'Jajanan',
+    reviews: [
+      ReviewData(stars: 4, comment: 'Donatnya empuk dan manisnya pas.'),
+      ReviewData(stars: 5, comment: 'Enak buat cemilan sore hari.'),
+    ],
+  ),
+  ProductData(
+    name: 'Kue Kering',
+    price: 'Rp 8.000',
+    seller: 'Olip Bakery',
+    image: 'assets/products/kue_kering.png',
+    category: 'Jajanan',
+    reviews: [
+      ReviewData(stars: 5, comment: 'Kue keringnya renyah banget!'),
+      ReviewData(stars: 4, comment: 'Rasanya pas, gak terlalu manis.'),
+    ],
+  ),
+  ProductData(
+    name: 'Alat Tulis',
+    price: 'Rp 10.000',
+    seller: 'FKB',
+    image: 'assets/products/alat_tulis.jfif',
+    category: 'Lainnya',
+    reviews: [
+      ReviewData(stars: 5, comment: 'Kualitas bagus, harga terjangkau.'),
+      ReviewData(
+        stars: 4,
+        comment: 'Pengiriman cepat, barang sesuai deskripsi.',
+      ),
+    ],
+  ),
+  ProductData(
+    name: 'Kue Kering',
+    price: 'Rp 8.000',
+    seller: 'Olip Bakery',
+    image: 'assets/products/kue_kering.png',
+    category: 'Jajanan',
+    reviews: [
+      ReviewData(stars: 5, comment: 'Favorit anak kos, murah dan enak!'),
+      ReviewData(stars: 5, comment: 'Selalu beli di sini tiap minggu.'),
+    ],
+  ),
+];
+
+// ==================== GRID PRODUK ====================
+class _ProductGrid extends StatelessWidget {
+  final List<ProductData> products;
+  const _ProductGrid({required this.products});
 
   @override
   Widget build(BuildContext context) {
@@ -451,27 +602,14 @@ class _FavoriteGrid extends StatelessWidget {
         mainAxisSpacing: 14,
         crossAxisSpacing: 14,
         childAspectRatio: 0.78,
-        children: _products.map((p) => _ProductCard(data: p)).toList(),
+        children: products.map((p) => _ProductCard(data: p)).toList(),
       ),
     );
   }
 }
 
-class _ProductData {
-  final String name;
-  final String price;
-  final String seller;
-  final String image;
-  const _ProductData({
-    required this.name,
-    required this.price,
-    required this.seller,
-    required this.image,
-  });
-}
-
 class _ProductCard extends StatelessWidget {
-  final _ProductData data;
+  final ProductData data;
   const _ProductCard({required this.data});
 
   int _priceToInt(String priceText) {
@@ -496,6 +634,7 @@ class _ProductCard extends StatelessWidget {
               kcal: 250,
               description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
               image: data.image,
+              reviews: data.reviews,
             ),
           ),
         );
@@ -595,6 +734,44 @@ class _ProductCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ==================== STATE PENCARIAN KOSONG ====================
+class _EmptySearchResult extends StatelessWidget {
+  const _EmptySearchResult();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 48,
+            color: kDarkGreen.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Produk tidak ditemukan',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: kDarkGreen.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Coba kata kunci atau kategori lain',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: kDarkGreen.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -739,12 +916,10 @@ class _BottomNavBar extends StatelessWidget {
           children: [
             Icon(Icons.home, color: kDarkGreen, size: 26),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OrdersPage()),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const OrdersPage()),
+              ),
               child: Icon(
                 Icons.receipt_long_outlined,
                 color: kDarkGreen.withValues(alpha: 0.5),
@@ -752,12 +927,10 @@ class _BottomNavBar extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ChatListPage()),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatListPage()),
+              ),
               child: Icon(
                 Icons.chat_bubble_outline,
                 color: kDarkGreen.withValues(alpha: 0.5),
@@ -765,12 +938,10 @@ class _BottomNavBar extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              ),
               child: Icon(
                 Icons.person_outline,
                 color: kDarkGreen.withValues(alpha: 0.5),
