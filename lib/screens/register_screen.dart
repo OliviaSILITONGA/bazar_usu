@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
-import 'home_page_user.dart';
+import 'ktm_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -11,52 +11,12 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Image.asset(
-          'assets/icon/icon.png',
-          height: 32,
-          errorBuilder: (_, __, ___) => const Text(
-            'Bazar USU',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: kDarkGreen,
-            ),
-          ),
-        ),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(
-            color: kDarkGreen,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.smart_toy_outlined,
-            color: Colors.white,
-            size: 24,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _nimController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  bool _penjual = false;
-  bool _pembeli = false;
 
   void _showWarning(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -67,6 +27,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void _handleRegister() {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final nim = _nimController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -82,6 +43,10 @@ class _RegisterPageState extends State<RegisterPage> {
       _showWarning('Format email tidak valid!');
       return;
     }
+    if (nim.isEmpty) {
+      _showWarning('NIM wajib diisi!');
+      return;
+    }
     if (phone.isEmpty) {
       _showWarning('Nomor WhatsApp/Telepon wajib diisi!');
       return;
@@ -94,23 +59,13 @@ class _RegisterPageState extends State<RegisterPage> {
       _showWarning('Password minimal 6 karakter!');
       return;
     }
-    if (!_penjual && !_pembeli) {
-      _showWarning('Pilih minimal satu peran (Penjual/Panitia atau Pembeli)!');
-      return;
-    }
 
-    Navigator.pushReplacement(
+    // Navigasi ke halaman verifikasi KTM setelah menekan tombol Daftar
+    Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const HomePageUser()),
-    );
-  }
-
-  Widget _roleCheck(String label, bool value, ValueChanged<bool?> onChanged) {
-    return Row(
-      children: [
-        Checkbox(value: value, onChanged: onChanged, activeColor: kGreen),
-        Text(label, style: const TextStyle(fontSize: 16)),
-      ],
+      MaterialPageRoute(
+        builder: (_) => KtmVerificationPage(userName: name, userNim: nim),
+      ),
     );
   }
 
@@ -118,6 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _nimController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -136,6 +92,12 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
         const SizedBox(height: 16),
         AuthField(
+          label: 'NIM',
+          controller: _nimController,
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 16),
+        AuthField(
           label: 'Nomor WhatsApp/Telepon',
           controller: _phoneController,
           keyboardType: TextInputType.phone,
@@ -146,26 +108,7 @@ class _RegisterPageState extends State<RegisterPage> {
           controller: _passwordController,
           obscure: true,
         ),
-        const SizedBox(height: 20),
-        const Text(
-          'Apa peranmu disini?',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: kGreen,
-          ),
-        ),
-        _roleCheck(
-          'Penjual/Panitia',
-          _penjual,
-          (v) => setState(() => _penjual = v ?? false),
-        ),
-        _roleCheck(
-          'Pembeli',
-          _pembeli,
-          (v) => setState(() => _pembeli = v ?? false),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         AuthButton(text: 'Daftar !!', onPressed: _handleRegister),
         const SizedBox(height: 16),
         Center(

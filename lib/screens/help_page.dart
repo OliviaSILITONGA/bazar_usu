@@ -347,12 +347,12 @@ class _HeroHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   child: Image.asset(
                     'assets/icon/icon.png',
-                    width: 75,
-                    height: 75,
+                    width: 90,
+                    height: 90,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
-                      width: 75,
-                      height: 75,
+                      width: 90,
+                      height: 90,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
