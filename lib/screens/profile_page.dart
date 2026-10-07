@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'chat_list_page.dart';
 import 'orders_page.dart';
@@ -11,183 +8,17 @@ import 'favorite_stores_page.dart';
 import 'favorite_products_page.dart';
 import 'saved_addresses_page.dart';
 import 'login_screen.dart';
+import 'profile_view_page.dart';
+import 'edit_profile_page.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
+import '../services/profile_state.dart';
 
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends State<ProfilePage> {
-  String _name = 'Nama Pengguna';
-  File? _photoFile;
-
-  Future<void> _openEditSheet() async {
-    final nameController = TextEditingController(text: _name);
-    File? tempPhoto = _photoFile;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Edit Profil',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: kDarkGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Center(
-                    child: GestureDetector(
-                      onTap: () async {
-                        final picker = ImagePicker();
-                        final picked = await picker.pickImage(
-                          source: ImageSource.gallery,
-                        );
-                        if (picked != null) {
-                          setSheetState(() => tempPhoto = File(picked.path));
-                        }
-                      },
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 44,
-                            backgroundColor: kLightGreen,
-                            backgroundImage: tempPhoto != null
-                                ? FileImage(tempPhoto!)
-                                : null,
-                            child: tempPhoto == null
-                                ? Icon(
-                                    Icons.person,
-                                    color: kDarkGreen.withValues(alpha: 0.6),
-                                    size: 44,
-                                  )
-                                : null,
-                          ),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 28,
-                              height: 28,
-                              decoration: const BoxDecoration(
-                                color: kDarkGreen,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      'Ketuk untuk ganti foto',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: kDarkGreen.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Nama Pengguna',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: kDarkGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: kDarkGreen.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: kDarkGreen,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _name = nameController.text.trim().isEmpty
-                              ? _name
-                              : nameController.text.trim();
-                          _photoFile = tempPhoto;
-                        });
-                        Navigator.pop(sheetContext);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kDarkGreen,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                      child: const Text(
-                        'Simpan',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _handleSwitchAccount() {
+  void _handleSwitchAccount(BuildContext context) {
     final status = SellerAccountState.instance.status.value;
 
     switch (status) {
@@ -199,6 +30,7 @@ class _ProfilePageState extends State<ProfilePage> {
         break;
       case SellerStatus.pending:
         _showInfoDialog(
+          context,
           title: 'Menunggu Verifikasi',
           message: 'Pendaftaran toko kamu sedang ditinjau oleh admin. Kamu akan bisa beralih ke akun penjual setelah disetujui.',
         );
@@ -244,7 +76,11 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _showInfoDialog({required String title, required String message}) {
+  void _showInfoDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -261,7 +97,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _handleLogout() {
+  void _handleLogout(BuildContext context) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -304,10 +140,29 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
-              _ProfileHeader(
-                name: _name,
-                photoFile: _photoFile,
-                onEditTap: _openEditSheet,
+              ValueListenableBuilder<ProfileData>(
+                valueListenable: ProfileState.instance.data,
+                builder: (context, profile, _) {
+                  return _ProfileHeader(
+                    profile: profile,
+                    onRowTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileViewPage(),
+                        ),
+                      );
+                    },
+                    onEditTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const EditProfilePage(),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
               const SizedBox(height: 24),
               _MenuSection(
@@ -352,32 +207,28 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
               const SizedBox(height: 20),
-              _MenuSection(
+              const _MenuSection(
                 title: 'Lainnya',
                 items: [
-                  const _MenuItemData(
+                  _MenuItemData(
                     icon: Icons.settings_outlined,
                     label: 'Pengaturan',
                   ),
-                  const _MenuItemData(
-                    icon: Icons.help_outline,
-                    label: 'Bantuan',
-                  ),
-                  const _MenuItemData(
-                    icon: Icons.flag_outlined,
-                    label: 'Laporkan',
-                  ),
+                  _MenuItemData(icon: Icons.help_outline, label: 'Bantuan'),
+                  _MenuItemData(icon: Icons.flag_outlined, label: 'Laporkan'),
                 ],
               ),
               const SizedBox(height: 20),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SwitchAccountBanner(onTap: _handleSwitchAccount),
+                child: _SwitchAccountBanner(
+                  onTap: () => _handleSwitchAccount(context),
+                ),
               ),
               const SizedBox(height: 14),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _LogoutButton(onTap: _handleLogout),
+                child: _LogoutButton(onTap: () => _handleLogout(context)),
               ),
               const SizedBox(height: 18),
               Center(
@@ -401,13 +252,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
 // ==================== HEADER PROFIL ====================
 class _ProfileHeader extends StatelessWidget {
-  final String name;
-  final File? photoFile;
+  final ProfileData profile;
+  final VoidCallback onRowTap;
   final VoidCallback onEditTap;
 
   const _ProfileHeader({
-    required this.name,
-    required this.photoFile,
+    required this.profile,
+    required this.onRowTap,
     required this.onEditTap,
   });
 
@@ -417,48 +268,66 @@ class _ProfileHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 34,
-            backgroundColor: kLightGreen,
-            backgroundImage: photoFile != null ? FileImage(photoFile!) : null,
-            child: photoFile == null
-                ? Icon(
-                    Icons.person,
-                    color: kDarkGreen.withValues(alpha: 0.6),
-                    size: 34,
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: kDarkGreen,
-                  ),
+            child: InkWell(
+              onTap: onRowTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 34,
+                      backgroundColor: kLightGreen,
+                      backgroundImage: profile.photo != null
+                          ? FileImage(profile.photo!)
+                          : null,
+                      child: profile.photo == null
+                          ? Icon(
+                              Icons.person,
+                              color: kDarkGreen.withValues(alpha: 0.6),
+                              size: 34,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            profile.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'email@students.usu.ac.id',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: kDarkGreen.withValues(alpha: 0.65),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'email@students.usu.ac.id',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: kDarkGreen.withValues(alpha: 0.65),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           GestureDetector(
             onTap: onEditTap,
-            child: Icon(
-              Icons.edit_outlined,
-              color: kDarkGreen.withValues(alpha: 0.6),
-              size: 20,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.edit_outlined,
+                color: kDarkGreen.withValues(alpha: 0.6),
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -577,7 +446,7 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
-// ==================== BANNER BERALIH AKUN (WIDGET BARU) ====================
+// ==================== BANNER BERALIH AKUN ====================
 class _SwitchAccountBanner extends StatelessWidget {
   final VoidCallback onTap;
   const _SwitchAccountBanner({required this.onTap});
@@ -637,7 +506,7 @@ class _SwitchAccountBanner extends StatelessWidget {
   }
 }
 
-// ==================== TOMBOL KELUAR (WIDGET BARU) ====================
+// ==================== TOMBOL KELUAR ====================
 class _LogoutButton extends StatelessWidget {
   final VoidCallback onTap;
   const _LogoutButton({required this.onTap});
