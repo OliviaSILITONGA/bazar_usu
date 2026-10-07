@@ -10,6 +10,7 @@ import 'saved_addresses_page.dart';
 import 'login_screen.dart';
 import 'profile_view_page.dart';
 import 'edit_profile_page.dart';
+import 'help_page.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
@@ -207,15 +208,27 @@ class ProfilePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              const _MenuSection(
+              _MenuSection(
                 title: 'Lainnya',
                 items: [
-                  _MenuItemData(
+                  const _MenuItemData(
                     icon: Icons.settings_outlined,
                     label: 'Pengaturan',
                   ),
-                  _MenuItemData(icon: Icons.help_outline, label: 'Bantuan'),
-                  _MenuItemData(icon: Icons.flag_outlined, label: 'Laporkan'),
+                  _MenuItemData(
+                    icon: Icons.help_outline,
+                    label: 'Bantuan',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HelpPage()),
+                      );
+                    },
+                  ),
+                  const _MenuItemData(
+                    icon: Icons.flag_outlined,
+                    label: 'Laporkan',
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
