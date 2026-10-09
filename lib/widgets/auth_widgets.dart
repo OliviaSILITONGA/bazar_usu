@@ -97,7 +97,10 @@ class AuthCard extends StatelessWidget {
 }
 
 // ==================== FIELD FORM AUTH ====================
-class AuthField extends StatelessWidget {
+// Kalau `obscure: true`, otomatis muncul ikon mata di sebelah kanan:
+//  - mata tertutup  = password disembunyikan (titik-titik)
+//  - mata terbuka   = password terlihat
+class AuthField extends StatefulWidget {
   final String label;
   final bool obscure;
   final TextInputType? keyboardType;
@@ -111,6 +114,13 @@ class AuthField extends StatelessWidget {
     this.controller,
   });
 
+  @override
+  State<AuthField> createState() => _AuthFieldState();
+}
+
+class _AuthFieldState extends State<AuthField> {
+  late bool _hidden = widget.obscure;
+
   OutlineInputBorder _border(Color color, double width) => OutlineInputBorder(
     borderRadius: BorderRadius.circular(kRadiusMd),
     borderSide: BorderSide(color: color, width: width),
@@ -122,7 +132,7 @@ class AuthField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -131,9 +141,9 @@ class AuthField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          obscureText: obscure,
-          keyboardType: keyboardType,
+          controller: widget.controller,
+          obscureText: _hidden,
+          keyboardType: widget.keyboardType,
           style: const TextStyle(fontSize: 14, color: kDarkGreen),
           decoration: InputDecoration(
             filled: true,
@@ -146,6 +156,19 @@ class AuthField extends StatelessWidget {
             border: _border(Colors.transparent, 0),
             enabledBorder: _border(Colors.transparent, 0),
             focusedBorder: _border(kDarkGreen, 1.6),
+            suffixIcon: widget.obscure
+                ? IconButton(
+                    onPressed: () => setState(() => _hidden = !_hidden),
+                    icon: Icon(
+                      _hidden
+                          ? Icons
+                                .visibility_off_outlined // titik-titik -> mata tertutup
+                          : Icons.visibility_outlined, // terlihat -> mata terbuka
+                      size: 20,
+                      color: kDarkGreen.withValues(alpha: 0.6),
+                    ),
+                  )
+                : null,
           ),
         ),
       ],

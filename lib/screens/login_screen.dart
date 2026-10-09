@@ -82,6 +82,10 @@ class _LoginPageState extends State<LoginPage> {
       _showWarning('Password wajib diisi!');
       return;
     }
+    if (password.length < 6) {
+      _showWarning('Password minimal 6 karakter!');
+      return;
+    }
 
     // SIMULASI LOGIN UNTUK DEMO FRONTEND
     if (email.contains('admin')) {
