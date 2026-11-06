@@ -1,0 +1,47 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.bazar_usu-mergeDebugResources-11:/values-v21/values-v21.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\HP\\.gradle\\caches\\9.3.1\\transforms\\e46ed8f06a72f620c22790adb308c8c7\\workspace\\transformed\\core-1.2.0\\res\\values-v21\\values-v21.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,13",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,159,223,290,354,470,596,722,850,1022",
+                        "endLines": "2,3,4,5,6,7,8,9,12,17",
+                        "endColumns": "103,63,66,63,115,125,125,127,12,12",
+                        "endOffsets": "154,218,285,349,465,591,717,845,1017,1355"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,9,18,21",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,159,223,290,354,470,596,722,1343,1515",
+                        "endLines": "2,3,4,5,6,7,8,9,20,25",
+                        "endColumns": "103,63,66,63,115,125,125,127,12,12",
+                        "endOffsets": "154,218,285,349,465,591,717,845,1510,1848"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\HP\\.gradle\\caches\\9.3.1\\transforms\\48f5c645e9454d551a04b13c888be3d4\\workspace\\transformed\\credentials-play-services-auth-1.2.0-rc01\\res\\values-v21\\values-v21.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "9",
+                        "endColumns": "12",
+                        "endOffsets": "543"
+                    },
+                    "to": {
+                        "startLines": "10",
+                        "startColumns": "4",
+                        "startOffsets": "850",
+                        "endLines": "17",
+                        "endColumns": "12",
+                        "endOffsets": "1338"
+                    }
+                }
+            ]
+        }
+    ]
+}

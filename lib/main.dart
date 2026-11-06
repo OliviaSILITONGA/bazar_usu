@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // Tambahkan import firebase_core
 
 import 'constants.dart';
 import 'screens/splash_screen.dart';
 
-void main() {
+void main() async {
+  // Ubah menjadi async
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "AIzaSyAfNIIn8smQ1Ozv3S7Y_tydIpPLNNkCzCA",
+      appId: "1:9649814368:web:62c6d1d362fcb06d4ffc05",
+      messagingSenderId: "9649814368",
+      projectId: "bazar-usu",
+      authDomain: "bazar-usu.firebaseapp.com",
+      storageBucket: "bazar-usu.firebasestorage.app",
+    ),
+  ); // Inisialisasi Firebase
   runApp(const MyApp());
 }
 
@@ -14,8 +27,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Bazar USU',
-      debugShowCheckedModeBanner:
-          false, // <- ini yang menghilangkan tulisan DEBUG
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: kDarkGreen),
         scaffoldBackgroundColor: kLightGreen,

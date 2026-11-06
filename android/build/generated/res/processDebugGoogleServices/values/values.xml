@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gcm_defaultSenderId" translatable="false">9649814368</string>
+    <string name="google_api_key" translatable="false">AIzaSyDpg_c5NqJ4emjGyqZ9M5eYrLzyElyl4O0</string>
+    <string name="google_app_id" translatable="false">1:9649814368:android:3088d611fd8a67304ffc05</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyDpg_c5NqJ4emjGyqZ9M5eYrLzyElyl4O0</string>
+    <string name="google_storage_bucket" translatable="false">bazar-usu.firebasestorage.app</string>
+    <string name="project_id" translatable="false">bazar-usu</string>
+</resources>

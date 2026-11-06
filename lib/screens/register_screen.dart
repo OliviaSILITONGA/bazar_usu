@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
+import '../services/auth_service.dart'; // Import service firebase auth kamu
 import 'ktm_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -18,13 +19,16 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
   void _showWarning(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
-  void _handleRegister() {
+  void _handleRegister() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final nim = _nimController.text.trim();
@@ -60,13 +64,30 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    // Navigasi ke halaman verifikasi KTM setelah menekan tombol Daftar
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => KtmVerificationPage(userName: name, userNim: nim),
-      ),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      // Proses pendaftaran akun baru ke Firebase Authentication
+      await _authService.registerWithEmailPassword(email, password);
+
+      if (mounted) {
+        // Navigasi ke halaman verifikasi KTM setelah berhasil daftar di Firebase
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => KtmVerificationPage(userName: name, userNim: nim),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showWarning(e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -109,7 +130,9 @@ class _RegisterPageState extends State<RegisterPage> {
           obscure: true,
         ),
         const SizedBox(height: 24),
-        AuthButton(text: 'Daftar !!', onPressed: _handleRegister),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator(color: kDarkGreen))
+            : AuthButton(text: 'Daftar !!', onPressed: _handleRegister),
         const SizedBox(height: 16),
         Center(
           child: InkWell(

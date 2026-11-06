@@ -1,0 +1,8 @@
+com.example.bazar_usu-pngs-0 D:\DATA C\HP\bazar_usu\android\build\generated\res\pngs\debug
+com.example.bazar_usu-res-1 D:\DATA C\HP\bazar_usu\android\build\generated\res\processDebugGoogleServices
+com.example.bazar_usu-updated_navigation_xml-2 D:\DATA C\HP\bazar_usu\android\build\generated\updated_navigation_xml\debug
+com.example.bazar_usu-packageDebugResources-3 D:\DATA C\HP\bazar_usu\android\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.example.bazar_usu-packageDebugResources-4 D:\DATA C\HP\bazar_usu\android\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.example.bazar_usu-debug-5 D:\DATA C\HP\bazar_usu\android\build\intermediates\merged_res\debug\mergeDebugResources
+com.example.bazar_usu-debug-6 D:\DATA C\HP\bazar_usu\android\src\debug\res
+com.example.bazar_usu-main-7 D:\DATA C\HP\bazar_usu\android\src\main\res

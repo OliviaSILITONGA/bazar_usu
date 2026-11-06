@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
+import '../services/auth_service.dart'; // Import service firebase auth kamu
 import 'register_screen.dart';
 import 'home_page_user.dart';
 import 'admin_dashboard_page.dart';
@@ -56,13 +57,16 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
   void _showWarning(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     final email = _emailController.text.trim().toLowerCase();
     final password = _passwordController.text.trim();
 
@@ -87,17 +91,34 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // SIMULASI LOGIN UNTUK DEMO FRONTEND
-    if (email.contains('admin')) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePageUser()),
-      );
+    setState(() => _isLoading = true);
+
+    try {
+      // Autentikasi masuk menggunakan Firebase Auth
+      await _authService.loginWithEmailPassword(email, password);
+
+      if (mounted) {
+        // Cek apakah akun admin atau user biasa
+        if (email.contains('admin')) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePageUser()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showWarning(e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -143,7 +164,9 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         const SizedBox(height: 20),
-        AuthButton(text: 'Login', onPressed: _handleLogin),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator(color: kDarkGreen))
+            : AuthButton(text: 'Login', onPressed: _handleLogin),
         const SizedBox(height: 16),
         Center(
           child: InkWell(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
+import '../services/auth_service.dart'; // Import service firebase auth kamu
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -50,9 +51,12 @@ class _TopBar extends StatelessWidget {
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
-  bool _linkSent = false;
+  final AuthService _authService = AuthService();
 
-  void _handleSend() {
+  bool _linkSent = false;
+  bool _isLoading = false;
+
+  void _handleSend() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,7 +76,30 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       );
       return;
     }
-    setState(() => _linkSent = true);
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Mengirim email reset password via Firebase Auth
+      await _authService.sendPasswordResetEmail(email);
+
+      if (mounted) {
+        setState(() {
+          _linkSent = true;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -118,13 +145,15 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               color: kGreen.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(
-              'Tautan reset password telah dikirim ke email kamu (simulasi).',
+            child: const Text(
+              'Tautan reset password telah dikirim ke email kamu. Silakan periksa kotak masuk atau folder spam.',
               style: TextStyle(fontSize: 12.5, color: kGreen),
               textAlign: TextAlign.center,
             ),
           ),
-        AuthButton(text: 'Kirim', onPressed: _handleSend),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator(color: kDarkGreen))
+            : AuthButton(text: 'Kirim', onPressed: _handleSend),
         const SizedBox(height: 16),
         Center(
           child: InkWell(
