@@ -20,7 +20,7 @@ class DatabaseService {
   }
 
   // Mengambil data profil user berdasarkan UID
-  Future<DocumentSnapshot>> getUserData(String uid) async {
+  Future<DocumentSnapshot> getUserData(String uid) async {
     return await _db.collection('users').doc(uid).get();
   }
 
@@ -34,7 +34,7 @@ class DatabaseService {
       'uid': uid,
       'namaToko': namaToko,
       'deskripsi': deskripsi,
-      'status': 'pending', // status awal: pending, approved, atau rejected
+      'status': 'pending', // Status menunggu verifikasi admin
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

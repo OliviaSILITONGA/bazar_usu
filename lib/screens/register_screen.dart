@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
-import '../services/auth_service.dart'; // Import service firebase auth kamu
+import '../services/auth_service.dart';
+import '../services/database_service.dart'; // Import service firebase auth kamu
+
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'ktm_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -67,11 +71,29 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Proses pendaftaran akun baru ke Firebase Authentication
-      await _authService.registerWithEmailPassword(email, password);
+      // Proses pendaftaran akun baru & langsung ambil UID-nya
+      // (Sesuaikan jika method di AuthService kamu langsung mengembalikan User atau string uid)
+      // Proses pendaftaran akun baru & ambil UID-nya dengan aman
+      final user = await _authService.registerWithEmailPassword(
+        email,
+        password,
+      );
+
+      if (user == null) {
+        throw 'Gagal mendaftarkan akun. Silakan coba lagi.';
+      }
+
+      String uid = user.uid;
+
+      // Simpan data profil ke Cloud Firestore koleksi 'users'
+      await DatabaseService().saveUserData(
+        uid: uid,
+        email: email,
+        nama: name,
+        role: 'buyer',
+      );
 
       if (mounted) {
-        // Navigasi ke halaman verifikasi KTM setelah berhasil daftar di Firebase
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -82,10 +104,6 @@ class _RegisterPageState extends State<RegisterPage> {
     } catch (e) {
       if (mounted) {
         _showWarning(e.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
       }
     }
   }

@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/seller_state.dart';
 import 'seller_main_navigation_page.dart';
+import '../services/database_service.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:bazar_usu/services/database_service.dart';
 
 class SellerRegistrationPage extends StatefulWidget {
   const SellerRegistrationPage({super.key});
 
   @override
-  State<SellerRegistrationPage> createState() =>
-      _SellerRegistrationPageState();
+  State<SellerRegistrationPage> createState() => _SellerRegistrationPageState();
 }
 
 class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
@@ -36,44 +39,75 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
     super.dispose();
   }
 
-  void _submit() {
+  void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    SellerAccountState.instance.submitApplication(
-      namaToko: _namaTokoController.text.trim(),
-      kategori: _kategori,
-      nomorHp: _nomorHpController.text.trim(),
-      alasan: _alasanController.text.trim(),
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('Toko Berhasil Dibuat'),
-        content: const Text(
-          'Toko kamu sudah aktif dan siap berjualan. Kamu akan diarahkan '
-          'ke dashboard penjual.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext); // tutup dialog
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SellerMainNavigationPage(),
-                ),
-              );
-            },
-            child: const Text('Mulai Berjualan'),
+    try {
+      // Ambil UID user yang sedang aktif login saat ini
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sesi login tidak ditemukan. Silakan login ulang.'),
+            backgroundColor: Colors.redAccent,
           ),
-        ],
-      ),
-    );
+        );
+        return;
+      }
+
+      // Simpan data toko ke Cloud Firestore koleksi 'tenants' dengan status 'pending'
+      await DatabaseService().registerTenant(
+        uid: user.uid,
+        namaToko: _namaTokoController.text.trim(),
+        deskripsi: _alasanController.text.trim(),
+      );
+
+      // Simpan juga ke state lokal jika dipakai oleh aplikasi kamu
+      SellerAccountState.instance.submitApplication(
+        namaToko: _namaTokoController.text.trim(),
+        kategori: _kategori,
+        nomorHp: _nomorHpController.text.trim(),
+        alasan: _alasanController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      // Tampilkan dialog pemberitahuan bahwa pendaftaran sedang ditinjau
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Pendaftaran Dikirim'),
+          content: const Text(
+            'Pendaftaran toko kamu berhasil dikirim! Admin akan meninjau '
+            'dan memverifikasi data kamu sebelum toko diaktifkan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // tutup dialog
+                // Arahkan kembali atau ke halaman status tunggu persetujuan
+                Navigator.pop(
+                  context,
+                ); // Kembali ke halaman sebelumnya / beranda
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mendaftarkan toko: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
@@ -177,10 +211,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
       filled: true,
       fillColor: Colors.white,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 12,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.3)),
