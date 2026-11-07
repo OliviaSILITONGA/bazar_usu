@@ -1,22 +1,34 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // Tambahkan import firebase_core
+import 'package:firebase_core/firebase_core.dart';
 
 import 'constants.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
-  // Ubah menjadi async
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyAfNIIn8smQ1Ozv3S7Y_tydIpPLNNkCzCA",
-      appId: "1:9649814368:web:62c6d1d362fcb06d4ffc05",
-      messagingSenderId: "9649814368",
-      projectId: "bazar-usu",
-      authDomain: "bazar-usu.firebaseapp.com",
-      storageBucket: "bazar-usu.firebasestorage.app",
-    ),
-  ); // Inisialisasi Firebase
+
+  try {
+    if (kIsWeb) {
+      // Konfigurasi khusus untuk Web / Desktop
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: "AIzaSyAfNIIn8smQ1Ozv3S7Y_tydIpPLNNkCzCA",
+          appId: "1:9649814368:web:62c6d1d362fcb06d4ffc05",
+          messagingSenderId: "9649814368",
+          projectId: "bazar-usu",
+          authDomain: "bazar-usu.firebaseapp.com",
+          storageBucket: "bazar-usu.firebasestorage.app",
+        ),
+      );
+    } else {
+      // Otomatis membaca konfigurasi native (google-services.json / GoogleService-Info.plist) untuk Android/iOS
+      await Firebase.initializeApp();
+    }
+  } catch (e) {
+    print("Error Firebase Init: $e");
+  }
+
   runApp(const MyApp());
 }
 

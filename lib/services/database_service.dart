@@ -38,4 +38,45 @@ class DatabaseService {
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
+
+  // Memperbarui profil user di Cloud Firestore
+  Future<void> updateUserData({
+    required String uid,
+    required String nama,
+    required String username,
+    required String bio,
+    required String address,
+    required String phone,
+  }) async {
+    // Ganti .update() dengan .set(..., SetOptions(merge: true))
+    return await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'nama': nama,
+      'username': username,
+      'bio': bio,
+      'alamat': address,
+      'telepon': phone,
+      'role': 'buyer', // pastikan field role tetap ada
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // Memperbarui data toko/tenant di Cloud Firestore
+  Future<void> updateTenantData({
+    required String uid,
+    String? namaToko,
+    String? kategori,
+    String? nomorHp,
+    required String deskripsi,
+  }) async {
+    final Map<String, dynamic> dataToUpdate = {
+      'deskripsi': deskripsi,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (namaToko != null) dataToUpdate['namaToko'] = namaToko;
+    if (kategori != null) dataToUpdate['kategori'] = kategori;
+    if (nomorHp != null) dataToUpdate['nomorHp'] = nomorHp;
+
+    await _db.collection('tenants').doc(uid).update(dataToUpdate);
+  }
 }

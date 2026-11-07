@@ -1,6 +1,4 @@
-import 'dart:io';
-
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 class ProfileData {
   final String name;
@@ -8,7 +6,9 @@ class ProfileData {
   final String bio;
   final String address;
   final String phone;
-  final File? photo;
+
+  /// Foto profil: teks base64 (dari Firestore) atau URL. null = belum ada foto.
+  final String? photo;
 
   const ProfileData({
     this.name = 'Nama Pengguna',

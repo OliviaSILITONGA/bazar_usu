@@ -1,103 +1,72 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../constants.dart';
+import '../services/profile_state.dart';
+import '../widgets/profile_avatar.dart';
 import 'chat_list_page.dart';
-import 'orders_page.dart';
-import 'seller_main_navigation_page.dart';
-import 'seller_registration_page.dart';
-import 'favorite_stores_page.dart';
-import 'favorite_products_page.dart';
-import 'saved_addresses_page.dart';
-import 'login_screen.dart';
-import 'profile_view_page.dart';
 import 'edit_profile_page.dart';
+import 'favorite_products_page.dart';
+import 'favorite_stores_page.dart';
 import 'help_page.dart';
+import 'login_screen.dart';
+import 'orders_page.dart';
+import 'profile_view_page.dart';
 import 'report_page.dart';
+import 'saved_addresses_page.dart';
+import 'seller_status_page.dart';
 import 'settings_page.dart';
 
-import '../constants.dart';
-import '../services/seller_state.dart';
-import '../services/profile_state.dart';
+/// Pindah ke halaman lain (menggantikan Navigator.push + MaterialPageRoute
+/// yang sebelumnya ditulis berulang-ulang).
+void _open(BuildContext context, Widget page) {
+  Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+}
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
-  void _handleSwitchAccount(BuildContext context) {
-    final status = SellerAccountState.instance.status.value;
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
 
-    switch (status) {
-      case SellerStatus.none:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SellerRegistrationPage()),
-        );
-        break;
-      case SellerStatus.pending:
-        _showInfoDialog(
-          context,
-          title: 'Menunggu Verifikasi',
-          message: 'Pendaftaran toko kamu sedang ditinjau oleh admin. Kamu akan bisa beralih ke akun penjual setelah disetujui.',
-        );
-        break;
-      case SellerStatus.rejected:
-        showDialog(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text('Pendaftaran Ditolak'),
-            content: const Text(
-              'Pendaftaran toko kamu sebelumnya belum disetujui admin. Kamu bisa mencoba mendaftar ulang dengan data yang lebih lengkap.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Nanti'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SellerRegistrationPage(),
-                    ),
-                  );
-                },
-                child: const Text('Daftar Ulang'),
-              ),
-            ],
-          ),
-        );
-        break;
-      case SellerStatus.approved:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const SellerMainNavigationPage()),
-        );
-        break;
-    }
+class _ProfilePageState extends State<ProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile(); // Tarik data terbaru dari Firestore saat halaman dibuka
   }
 
-  void _showInfoDialog(
-    BuildContext context, {
-    required String title,
-    required String message,
-  }) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Oke'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _loadUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = doc.data();
+      if (data == null) return;
+
+      // Perbarui state lokal dengan data asli dari Firestore
+      ProfileState.instance.update(
+        ProfileData(
+          name: data['nama'] ?? 'Nama Pengguna',
+          username: data['username'] ?? '',
+          bio: data['bio'] ?? '',
+          address: data['alamat'] ?? '',
+          phone: data['telepon'] ?? '',
+          photo: data['foto'], // sesuai tipe di model ProfileData
+        ),
+      );
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Gagal memuat profil: $e');
+    }
   }
 
   void _handleLogout(BuildContext context) {
@@ -114,7 +83,7 @@ class ProfilePage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(dialogContext).pop();
+              Navigator.pop(dialogContext);
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginPage()),
                 (route) => false,
@@ -145,27 +114,11 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 16),
               ValueListenableBuilder<ProfileData>(
                 valueListenable: ProfileState.instance.data,
-                builder: (context, profile, _) {
-                  return _ProfileHeader(
-                    profile: profile,
-                    onRowTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileViewPage(),
-                        ),
-                      );
-                    },
-                    onEditTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const EditProfilePage(),
-                        ),
-                      );
-                    },
-                  );
-                },
+                builder: (context, profile, _) => _ProfileHeader(
+                  profile: profile,
+                  onRowTap: () => _open(context, const ProfileViewPage()),
+                  onEditTap: () => _open(context, const EditProfilePage()),
+                ),
               ),
               const SizedBox(height: 24),
               _MenuSection(
@@ -174,38 +127,17 @@ class ProfilePage extends StatelessWidget {
                   _MenuItemData(
                     icon: Icons.favorite_border,
                     label: 'Produk Favorit',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const FavoriteProductsPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => _open(context, const FavoriteProductsPage()),
                   ),
                   _MenuItemData(
                     icon: Icons.location_on_outlined,
                     label: 'Alamat Tersimpan',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SavedAddressesPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => _open(context, const SavedAddressesPage()),
                   ),
                   _MenuItemData(
                     icon: Icons.store_outlined,
                     label: 'Toko Favorit',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const FavoriteStoresPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => _open(context, const FavoriteStoresPage()),
                   ),
                 ],
               ),
@@ -216,32 +148,17 @@ class ProfilePage extends StatelessWidget {
                   _MenuItemData(
                     icon: Icons.settings_outlined,
                     label: 'Pengaturan',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SettingsPage()),
-                      );
-                    },
+                    onTap: () => _open(context, const SettingsPage()),
                   ),
                   _MenuItemData(
                     icon: Icons.help_outline,
                     label: 'Bantuan',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const HelpPage()),
-                      );
-                    },
+                    onTap: () => _open(context, const HelpPage()),
                   ),
                   _MenuItemData(
                     icon: Icons.flag_outlined,
                     label: 'Laporkan',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ReportPage()),
-                      );
-                    },
+                    onTap: () => _open(context, const ReportPage()),
                   ),
                 ],
               ),
@@ -249,7 +166,7 @@ class ProfilePage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: _SwitchAccountBanner(
-                  onTap: () => _handleSwitchAccount(context),
+                  onTap: () => _open(context, const SellerStatusPage()),
                 ),
               ),
               const SizedBox(height: 14),
@@ -291,6 +208,10 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Email asli dari akun yang sedang login.
+    final email =
+        FirebaseAuth.instance.currentUser?.email ?? 'email@students.usu.ac.id';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -303,20 +224,7 @@ class _ProfileHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 34,
-                      backgroundColor: kLightGreen,
-                      backgroundImage: profile.photo != null
-                          ? FileImage(profile.photo!)
-                          : null,
-                      child: profile.photo == null
-                          ? Icon(
-                              Icons.person,
-                              color: kDarkGreen.withValues(alpha: 0.6),
-                              size: 34,
-                            )
-                          : null,
-                    ),
+                    ProfileAvatar(photo: profile.photo, radius: 34),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -324,6 +232,7 @@ class _ProfileHeader extends StatelessWidget {
                         children: [
                           Text(
                             profile.name,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -332,7 +241,8 @@ class _ProfileHeader extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'email@students.usu.ac.id',
+                            email,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12.5,
                               color: kDarkGreen.withValues(alpha: 0.65),
@@ -346,6 +256,7 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: onEditTap,
             child: Padding(
@@ -369,6 +280,7 @@ class _MenuItemData {
   final String label;
   final bool isDestructive;
   final VoidCallback? onTap;
+
   const _MenuItemData({
     required this.icon,
     required this.label,
@@ -380,6 +292,7 @@ class _MenuItemData {
 class _MenuSection extends StatelessWidget {
   final String title;
   final List<_MenuItemData> items;
+
   const _MenuSection({required this.title, required this.items});
 
   @override
@@ -405,20 +318,17 @@ class _MenuSection extends StatelessWidget {
               border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
             ),
             child: Column(
-              children: List.generate(items.length, (index) {
-                final item = items[index];
-                return Column(
-                  children: [
-                    _MenuTile(data: item),
-                    if (index != items.length - 1)
-                      Divider(
-                        height: 1,
-                        indent: 58,
-                        color: kDarkGreen.withValues(alpha: 0.08),
-                      ),
-                  ],
-                );
-              }),
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  _MenuTile(data: items[i]),
+                  if (i != items.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: 58,
+                      color: kDarkGreen.withValues(alpha: 0.08),
+                    ),
+                ],
+              ],
             ),
           ),
         ],
@@ -429,13 +339,15 @@ class _MenuSection extends StatelessWidget {
 
 class _MenuTile extends StatelessWidget {
   final _MenuItemData data;
+
   const _MenuTile({required this.data});
 
   @override
   Widget build(BuildContext context) {
     final color = data.isDestructive ? Colors.redAccent : kDarkGreen;
+
     return InkWell(
-      onTap: data.onTap ?? () {},
+      onTap: data.onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -443,7 +355,7 @@ class _MenuTile extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: kLightGreen,
                 shape: BoxShape.circle,
               ),
@@ -476,6 +388,7 @@ class _MenuTile extends StatelessWidget {
 // ==================== BANNER BERALIH AKUN ====================
 class _SwitchAccountBanner extends StatelessWidget {
   final VoidCallback onTap;
+
   const _SwitchAccountBanner({required this.onTap});
 
   @override
@@ -489,23 +402,15 @@ class _SwitchAccountBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE9D08C)),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE9D08C),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.storefront,
-                color: Color(0xFF8A6D1D),
-                size: 20,
-              ),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Color(0xFFE9D08C),
+              child: Icon(Icons.storefront, color: Color(0xFF8A6D1D), size: 20),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -525,7 +430,7 @@ class _SwitchAccountBanner extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Color(0xFF8A7530), size: 20),
+            Icon(Icons.chevron_right, color: Color(0xFF8A7530), size: 20),
           ],
         ),
       ),
@@ -536,6 +441,7 @@ class _SwitchAccountBanner extends StatelessWidget {
 // ==================== TOMBOL KELUAR ====================
 class _LogoutButton extends StatelessWidget {
   final VoidCallback onTap;
+
   const _LogoutButton({required this.onTap});
 
   @override
@@ -589,45 +495,53 @@ class _BottomNavBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            GestureDetector(
+            _NavIcon(
+              icon: Icons.home,
+              size: 26,
               onTap: () => Navigator.pop(context),
-              child: Icon(
-                Icons.home,
-                color: kDarkGreen.withValues(alpha: 0.5),
-                size: 26,
-              ),
             ),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const OrdersPage()),
-              ),
-              child: Icon(
-                Icons.receipt_long_outlined,
-                color: kDarkGreen.withValues(alpha: 0.5),
-                size: 24,
-              ),
+            _NavIcon(
+              icon: Icons.receipt_long_outlined,
+              onTap: () => _open(context, const OrdersPage()),
             ),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ChatListPage()),
-              ),
-              child: Icon(
-                Icons.chat_bubble_outline,
-                color: kDarkGreen.withValues(alpha: 0.5),
-                size: 24,
-              ),
+            _NavIcon(
+              icon: Icons.chat_bubble_outline,
+              onTap: () => _open(context, ChatListPage()),
             ),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              ),
-              child: const Icon(Icons.person, color: kDarkGreen, size: 26),
+            _NavIcon(
+              icon: Icons.person,
+              size: 26,
+              isActive: true,
+              onTap: () => _open(context, const ProfilePage()),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NavIcon extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _NavIcon({
+    required this.icon,
+    required this.onTap,
+    this.size = 24,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Icon(
+        icon,
+        size: size,
+        color: isActive ? kDarkGreen : kDarkGreen.withValues(alpha: 0.5),
       ),
     );
   }

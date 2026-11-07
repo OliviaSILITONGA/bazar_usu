@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'home_page.dart';
 
-// ==================== SPLASH SCREEN (dengan animasi fade) ====================
+// ==================== SPLASH SCREEN ====================
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -16,17 +16,18 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacity;
+  Timer? _fallbackTimer;
 
   @override
   void initState() {
     super.initState();
 
+    // Kurangi durasi jadi 2.5 detik agar tidak terlalu lama
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 5000), // total durasi animasi
+      duration: const Duration(milliseconds: 2500),
     );
 
-    // fade-in di 0%-30%, tahan di 30%-70%, fade-out di 70%-100%
     _opacity = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween(
@@ -47,19 +48,36 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Setelah animasi selesai, pindah ke halaman utama
+    // Listener saat animasi selesai
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        _navigateToHome();
       }
     });
+
+    // PENGAMAN (FALLBACK TIMER):
+    // Jaga-jaga jika animasi macet/tidak mentrigger navigasi,
+    // dalam waktu 3 detik aplikasi dipaksa pindah halaman.
+    _fallbackTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        _navigateToHome();
+      }
+    });
+  }
+
+  void _navigateToHome() {
+    // Batalkan timer agar tidak terpanggil dua kali
+    _fallbackTimer?.cancel();
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const HomePage()),
+    );
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _fallbackTimer?.cancel();
     super.dispose();
   }
 

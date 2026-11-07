@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/profile_state.dart';
+import '../widgets/profile_avatar.dart';
 import 'edit_profile_page.dart';
 
 class ProfileViewPage extends StatelessWidget {
@@ -49,20 +50,7 @@ class ProfileViewPage extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 48,
-                          backgroundColor: kLightGreen,
-                          backgroundImage: profile.photo != null
-                              ? FileImage(profile.photo!)
-                              : null,
-                          child: profile.photo == null
-                              ? Icon(
-                                  Icons.person,
-                                  size: 48,
-                                  color: kDarkGreen.withValues(alpha: 0.6),
-                                )
-                              : null,
-                        ),
+                        ProfileAvatar(photo: profile.photo, radius: 48),
                         const SizedBox(height: 14),
                         Text(
                           profile.name,
@@ -152,6 +140,7 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+
   const _InfoRow({
     required this.icon,
     required this.label,

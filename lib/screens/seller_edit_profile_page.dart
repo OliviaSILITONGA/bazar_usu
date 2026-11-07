@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/database_service.dart';
 import '../constants.dart';
 import '../services/seller_state.dart';
 import '../services/seller_profile_extra_state.dart';
@@ -40,14 +42,38 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
     }
   }
 
-  void _save() {
-    SellerProfileExtraState.instance.update(
-      SellerProfileExtra(
-        description: _descriptionController.text.trim(),
-        photo: _photo,
-      ),
-    );
-    Navigator.pop(context);
+  void _save() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Simpan deskripsi/perubahan ke Cloud Firestore koleksi 'tenants'
+        await DatabaseService().updateTenantData(
+          uid: user.uid,
+          deskripsi: _descriptionController.text.trim(),
+        );
+      }
+
+      // Perbarui state lokal aplikasi
+      SellerProfileExtraState.instance.update(
+        SellerProfileExtra(
+          description: _descriptionController.text.trim(),
+          photo: _photo,
+        ),
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan profil toko: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   @override
