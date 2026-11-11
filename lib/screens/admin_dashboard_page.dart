@@ -6,6 +6,7 @@ import 'seller_verification_page.dart';
 import 'manage_users_page.dart';
 import 'manage_bazaar_page.dart';
 import 'reports_page.dart';
+import 'user_ktm_verification_page.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -65,6 +66,35 @@ class AdminDashboardPage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
+
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .where('ktmStatus', isEqualTo: 'pending')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                int pendingKtmCount = snapshot.hasData
+                    ? snapshot.data!.docs.length
+                    : 0;
+
+                return _buildAdminTile(
+                  title: 'Verifikasi KTM Mahasiswa',
+                  subtitle: pendingKtmCount > 0
+                      ? '$pendingKtmCount KTM mahasiswa menunggu persetujuan'
+                      : 'Tidak ada antrean verifikasi KTM',
+                  icon: Icons.badge_outlined,
+                  badgeCount: pendingKtmCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserKtmVerificationPage(),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
 
             // Bungkus dengan StreamBuilder agar badge-nya otomatis update sesuai jumlah data 'pending' di Firestore
             StreamBuilder<QuerySnapshot>(

@@ -1,12 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/auth_service.dart';
 import '../widgets/auth_widgets.dart';
-import '../services/auth_service.dart'; // Import service firebase auth kamu
-import 'register_screen.dart';
-import 'home_page_user.dart';
 import 'admin_dashboard_page.dart';
 import 'forgot_password_page.dart';
+import 'home_page_user.dart';
+import 'ktm_pending_page.dart'; // Tambahkan import halaman pending
+import 'register_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -94,20 +97,47 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Autentikasi masuk menggunakan Firebase Auth
-      await _authService.loginWithEmailPassword(email, password);
+      // 1. Autentikasi masuk menggunakan Firebase Auth via AuthService
+      final user = await _authService.loginWithEmailPassword(email, password);
 
-      if (mounted) {
-        // Cek apakah akun admin atau user biasa
+      if (user != null && mounted) {
+        // Jika email mengandung kata 'admin', arahkan langsung ke dashboard admin
         if (email.contains('admin')) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
           );
+          return;
+        }
+
+        // 2. Ambil data dokumen user dari Cloud Firestore untuk cek status KTM
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>;
+          final ktmStatus = data['ktmStatus'] ?? 'pending';
+
+          // 3. Cek apakah status KTM sudah approved atau masih pending/rejected
+          if (ktmStatus == 'approved') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomePageUser()),
+            );
+          } else {
+            // Jika masih pending atau ditolak, arahkan ke halaman tunggu/pending
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const KtmPendingPage()),
+            );
+          }
         } else {
+          // Jika dokumen user belum ada di Firestore, arahkan ke halaman pending
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const HomePageUser()),
+            MaterialPageRoute(builder: (_) => const KtmPendingPage()),
           );
         }
       }

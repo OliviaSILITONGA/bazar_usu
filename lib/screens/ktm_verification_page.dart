@@ -1,11 +1,16 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
 import 'home_page_user.dart';
+import 'ktm_pending_page.dart';
 
 class KtmVerificationPage extends StatefulWidget {
   final String userName;
@@ -22,21 +27,20 @@ class KtmVerificationPage extends StatefulWidget {
 }
 
 class _KtmVerificationPageState extends State<KtmVerificationPage> {
-  File? _selectedImage;
+  Uint8List? _imageBytes; // Menyimpan bytes gambar agar aman di Web & HP
   final ImagePicker _picker = ImagePicker();
 
-  // Fungsi untuk mengambil/memilih gambar
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality:
-            80, // Mengompres gambar agar ukurannya tidak terlalu besar
+        imageQuality: 80,
       );
 
       if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
         setState(() {
-          _selectedImage = File(pickedFile.path);
+          _imageBytes = bytes;
         });
       }
     } catch (e) {
@@ -51,7 +55,6 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
     }
   }
 
-  // Tampilan pilihan modal bottom sheet (Kamera vs Galeri)
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
@@ -70,17 +73,21 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt, color: kDarkGreen),
-                  title: const Text('Ambil lewat Kamera'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.camera);
-                  },
-                ),
+                // Jika di Web, kamera mungkin tidak tersedia langsung, tapi tetap kita sediakan
+                if (!kIsWeb)
+                  ListTile(
+                    leading: const Icon(Icons.camera_alt, color: kDarkGreen),
+                    title: const Text('Ambil lewat Kamera'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
+                    },
+                  ),
                 ListTile(
                   leading: const Icon(Icons.photo_library, color: kDarkGreen),
-                  title: const Text('Pilih dari Galeri'),
+                  title: Text(
+                    kIsWeb ? 'Pilih File KTM' : 'Pilih dari Galeri/File',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _pickImage(ImageSource.gallery);
@@ -94,8 +101,8 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
     );
   }
 
-  void _submitVerification() {
-    if (_selectedImage == null) {
+  Future<void> _submitVerification() async {
+    if (_imageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Harap unggah foto KTM terlebih dahulu!'),
@@ -105,12 +112,57 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
       return;
     }
 
-    // Berhasil verifikasi dan masuk ke HomePageUser
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const HomePageUser()),
-      (route) => false,
-    );
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi login tidak ditemukan.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Ubah bytes gambar ke string base64
+      final base64Ktm = base64Encode(_imageBytes!);
+
+      // Simpan foto KTM dan status verifikasi ke Cloud Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'ktmPhoto': base64Ktm,
+        'ktmStatus': 'pending', // Status: pending, approved, rejected
+        'nim': widget.userNim,
+        'nama': widget.userName,
+        'submittedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Foto KTM berhasil dikirim! Menunggu verifikasi admin.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Berhasil verifikasi dan masuk ke HomePageUser
+      // Ganti bagian Navigator ini di _submitVerification:
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const KtmPendingPage()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengirim verifikasi: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
@@ -145,7 +197,7 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Untuk memverifikasi status Anda sebagai mahasiswa USU, silakan unggah atau ambil foto Kartu Tanda Mahasiswa (KTM) Anda.',
+              'Untuk memverifikasi status Anda sebagai mahasiswa USU, silakan unggah foto Kartu Tanda Mahasiswa (KTM) Anda.',
               style: TextStyle(fontSize: 14, color: Colors.black87),
             ),
             const SizedBox(height: 24),
@@ -159,19 +211,20 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _selectedImage != null
-                        ? kGreen
+                    color: _imageBytes != null
+                        ? kDarkGreen
                         : Colors.grey.shade400,
                     width: 2,
                   ),
                 ),
-                child: _selectedImage != null
+                child: _imageBytes != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.file(_selectedImage!, fit: BoxFit.cover),
+                            // Menggunakan Image.memory agar aman di Web maupun HP
+                            Image.memory(_imageBytes!, fit: BoxFit.cover),
                             Positioned(
                               bottom: 8,
                               right: 8,
@@ -217,7 +270,7 @@ class _KtmVerificationPageState extends State<KtmVerificationPage> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            'Ketuk untuk Ambil / Unggah Foto KTM',
+                            'Ketuk untuk Unggah / Pilih File KTM',
                             style: TextStyle(
                               color: Colors.grey,
                               fontWeight: FontWeight.w500,
