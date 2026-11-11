@@ -1,29 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../constants.dart';
-import '../services/seller_state.dart';
 
 class SellerVerificationPage extends StatelessWidget {
   const SellerVerificationPage({super.key});
 
-  void _approveSeller(BuildContext context, SellerApplication app) {
-    SellerAccountState.instance.approve(app.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${app.namaToko} berhasil diverifikasi & disetujui!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+  // Fungsi untuk menyetujui pendaftaran toko di Firestore
+  Future<void> _approveSeller(
+    BuildContext context,
+    String docId,
+    String namaToko,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('tenants').doc(docId).update({
+        'status': 'approved',
+      });
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$namaToko berhasil diverifikasi & disetujui!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyetujui toko: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  void _rejectSeller(BuildContext context, SellerApplication app) {
-    SellerAccountState.instance.reject(app.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Pendaftaran ${app.namaToko} ditolak.'),
-        backgroundColor: Colors.red,
-      ),
-    );
+  // Fungsi untuk menolak pendaftaran toko di Firestore
+  Future<void> _rejectSeller(
+    BuildContext context,
+    String docId,
+    String namaToko,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('tenants').doc(docId).update({
+        'status': 'rejected',
+      });
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pendaftaran $namaToko ditolak.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menolak toko: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -36,10 +74,26 @@ class SellerVerificationPage extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: ValueListenableBuilder<List<SellerApplication>>(
-        valueListenable: SellerAccountState.instance.pendingApplications,
-        builder: (context, pendingSellers, _) {
-          if (pendingSellers.isEmpty) {
+      // Menggunakan StreamBuilder untuk mengambil data secara real-time dari Firestore
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('tenants')
+            .where('status', isEqualTo: 'pending')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: kGreen),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Terjadi kesalahan: ${snapshot.error}'));
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -65,9 +119,17 @@ class SellerVerificationPage extends StatelessWidget {
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: pendingSellers.length,
+            itemCount: docs.length,
             itemBuilder: (context, index) {
-              final seller = pendingSellers[index];
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              final docId = doc.id;
+              final namaToko = data['namaToko'] ?? 'Tanpa Nama Toko';
+              final kategori = data['kategori'] ?? 'Lainnya';
+              final nomorHp = data['nomorHp'] ?? '-';
+              final alasan = data['deskripsi'] ?? data['alasan'] ?? '-';
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 16),
                 shape: RoundedRectangleBorder(
@@ -85,7 +147,7 @@ class SellerVerificationPage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              seller.namaToko,
+                              namaToko,
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -103,7 +165,7 @@ class SellerVerificationPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              seller.kategori,
+                              kategori,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: kGreen,
@@ -116,15 +178,11 @@ class SellerVerificationPage extends StatelessWidget {
                       const Divider(height: 24),
 
                       // Detail Pendaftar
-                      _buildDetailRow(
-                        Icons.phone,
-                        'No. WhatsApp',
-                        seller.nomorHp,
-                      ),
+                      _buildDetailRow(Icons.phone, 'No. WhatsApp', nomorHp),
                       _buildDetailRow(
                         Icons.description,
                         'Alasan/Deskripsi',
-                        seller.alasan,
+                        alasan,
                       ),
 
                       const SizedBox(height: 16),
@@ -143,7 +201,8 @@ class SellerVerificationPage extends StatelessWidget {
                               ),
                               icon: const Icon(Icons.close),
                               label: const Text('Tolak'),
-                              onPressed: () => _rejectSeller(context, seller),
+                              onPressed: () =>
+                                  _rejectSeller(context, docId, namaToko),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -159,7 +218,8 @@ class SellerVerificationPage extends StatelessWidget {
                               ),
                               icon: const Icon(Icons.check),
                               label: const Text('Setujui'),
-                              onPressed: () => _approveSeller(context, seller),
+                              onPressed: () =>
+                                  _approveSeller(context, docId, namaToko),
                             ),
                           ),
                         ],
@@ -194,10 +254,7 @@ class SellerVerificationPage extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
         ],

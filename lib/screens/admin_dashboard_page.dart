@@ -7,6 +7,8 @@ import 'manage_users_page.dart';
 import 'manage_bazaar_page.dart';
 import 'reports_page.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
 
@@ -64,20 +66,36 @@ class AdminDashboardPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            _buildAdminTile(
-              title: 'Verifikasi Pendaftaran Penjual',
-              subtitle: '3 toko mahasiswa menunggu persetujuan',
-              icon: Icons.verified_user_outlined,
-              badgeCount: 3,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SellerVerificationPage(),
-                  ),
+            // Bungkus dengan StreamBuilder agar badge-nya otomatis update sesuai jumlah data 'pending' di Firestore
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('tenants')
+                  .where('status', isEqualTo: 'pending')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                int pendingCount = snapshot.hasData
+                    ? snapshot.data!.docs.length
+                    : 0;
+
+                return _buildAdminTile(
+                  title: 'Verifikasi Pendaftaran Penjual',
+                  subtitle: pendingCount > 0
+                      ? '$pendingCount toko mahasiswa menunggu persetujuan'
+                      : 'Tidak ada antrean verifikasi saat ini',
+                  icon: Icons.verified_user_outlined,
+                  badgeCount: pendingCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SellerVerificationPage(),
+                      ),
+                    );
+                  },
                 );
               },
             ),
+
             _buildAdminTile(
               title: 'Kelola Data Pengguna',
               subtitle: 'Lihat, nonaktifkan, atau atur peran akun',
