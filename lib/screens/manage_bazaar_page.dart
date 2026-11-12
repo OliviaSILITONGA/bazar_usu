@@ -17,7 +17,8 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    // 3 Tab: Daftar Bazar, Jenis Bazar, Lokasi Lapak
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -26,7 +27,54 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
     super.dispose();
   }
 
-  // Dialog Tambah / Edit Lokasi Lapak Bazar (Tab 2)
+  // Dialog Tambah Jenis / Kategori Bazar (Untuk Tab ke-2)
+  void _showAddCategoryDialog() {
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tambah Jenis Bazar Baru'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              labelText: 'Nama Jenis / Kategori',
+              hintText: 'Contoh: Minuman & Danusan',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: kGreen),
+              onPressed: () async {
+                if (nameController.text.isNotEmpty) {
+                  await FirebaseFirestore.instance
+                      .collection('bazaar_categories')
+                      .add({
+                        'nama': nameController.text.trim(),
+                        'jumlahToko': 0,
+                        'createdAt': FieldValue.serverTimestamp(),
+                      });
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text(
+                'Tambah',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Dialog Tambah / Edit Lokasi Lapak Bazar (Untuk Tab ke-3)
   void _showAddEditSpotDialog({DocumentSnapshot? doc}) {
     final nameController = TextEditingController(
       text: doc != null ? doc['nama'] : '',
@@ -124,19 +172,26 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F8),
       appBar: AppBar(
-        title: const Text('Kelola Bazar & Lapak Bazar'),
+        title: const Text(
+          'Kelola Bazar & Lapak',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: kGreen,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
+          indicatorColor: Colors.amberAccent,
           indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          isScrollable: true,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
           tabs: const [
-            Tab(text: 'Daftar Bazar (Toko)'),
-            Tab(text: 'Lokasi Lapak Bazar'),
+            Tab(text: 'Daftar Bazar'),
+            Tab(text: 'Jenis Bazar'),
+            Tab(text: 'Lokasi Lapak'),
           ],
         ),
       ),
@@ -144,7 +199,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
         controller: _tabController,
         children: [
           // =================================================================
-          // TAB 1: DAFTAR BAZAR (Mengambil langsung dari koleksi 'tenants')
+          // TAB 1: DAFTAR BAZAR / DANUSAN (Nama Toko dari 'tenants')
           // =================================================================
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -158,21 +213,16 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
               }
 
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(
-                  child: Text('Belum ada akun bazar/toko terdaftar'),
-                );
+                return const Center(child: Text('Belum ada bazar terdaftar'));
               }
 
-              final tenantDocs = snapshot.data!.docs;
+              final docs = snapshot.data!.docs;
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: tenantDocs.length,
+                itemCount: docs.length,
                 itemBuilder: (context, index) {
-                  final doc = tenantDocs[index];
-                  final data = doc.data() as Map<String, dynamic>;
-
-                  // Sesuaikan nama field dengan struktur dokumen di koleksi 'tenants' kamu
+                  final data = docs[index].data() as Map<String, dynamic>;
                   final namaBazar =
                       data['storeName'] ??
                       data['namaToko'] ??
@@ -181,12 +231,8 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                   final pemilik =
                       data['ownerName'] ?? data['namaPemilik'] ?? '-';
                   final lokasi =
-                      data['lokasi'] ??
-                      data['fakultas'] ??
-                      data['spot'] ??
-                      'Area USU';
+                      data['lokasi'] ?? data['fakultas'] ?? 'Area USU';
                   final status = data['status'] ?? 'pending';
-
                   final isApproved = status == 'approved';
 
                   return Card(
@@ -194,11 +240,8 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 0,
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
                       leading: CircleAvatar(
                         backgroundColor: isApproved
                             ? kGreen.withValues(alpha: 0.1)
@@ -212,23 +255,9 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                         namaBazar,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pemilik/Organisasi: $pemilik',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            'Lokasi Lapak: $lokasi',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: kDarkGreen,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      subtitle: Text(
+                        'Pemilik: $pemilik\nLokasi: $lokasi',
+                        style: const TextStyle(fontSize: 12),
                       ),
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(
@@ -260,7 +289,121 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
           ),
 
           // =================================================================
-          // TAB 2: LOKASI LAPAK BAZAR (Menghitung jumlah bazar per lokasi)
+          // TAB 2: JENIS BAZAR (Gaya Kartu Kategori Sesuai Gambar Referensi)
+          // =================================================================
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      'Tambah Kategori Baru',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onPressed: _showAddCategoryDialog,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('bazaar_categories')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: kGreen),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(
+                          child: Text('Belum ada kategori bazar terdaftar'),
+                        );
+                      }
+
+                      final catDocs = snapshot.data!.docs;
+
+                      return ListView.builder(
+                        itemCount: catDocs.length,
+                        itemBuilder: (context, index) {
+                          final doc = catDocs[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          final namaKat = data['nama'] ?? 'Tanpa Nama';
+                          final jumlahToko = data['jumlahToko'] ?? 0;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: kGreen.withValues(alpha: 0.1),
+                                child: const Icon(
+                                  Icons.category,
+                                  color: kGreen,
+                                ),
+                              ),
+                              title: Text(
+                                namaKat,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '$jumlahToko toko menggunakan kategori ini',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () async {
+                                  await FirebaseFirestore.instance
+                                      .collection('bazaar_categories')
+                                      .doc(doc.id)
+                                      .delete();
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // =================================================================
+          // TAB 3: LOKASI LAPAK BAZAR (Tempat/Fakultas yang bisa ditambah)
           // =================================================================
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -283,187 +426,85 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  // Menggunakan nested StreamBuilder untuk mencocokkan lokasi dengan jumlah bazar di 'tenants'
                   child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('bazaar_spots')
                         .orderBy('createdAt', descending: true)
                         .snapshots(),
-                    builder: (context, spotSnapshot) {
-                      if (spotSnapshot.connectionState ==
-                          ConnectionState.waiting) {
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(color: kGreen),
                         );
                       }
 
-                      if (!spotSnapshot.hasData ||
-                          spotSnapshot.data!.docs.isEmpty) {
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return const Center(
                           child: Text('Belum ada lokasi lapak terdaftar'),
                         );
                       }
 
-                      final spotDocs = spotSnapshot.data!.docs;
+                      final spotDocs = snapshot.data!.docs;
 
-                      return StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('tenants')
-                            .where('status', isEqualTo: 'approved')
-                            .snapshots(),
-                        builder: (context, tenantSnapshot) {
-                          final activeTenants = tenantSnapshot.hasData
-                              ? tenantSnapshot.data!.docs
-                              : [];
+                      return ListView.builder(
+                        itemCount: spotDocs.length,
+                        itemBuilder: (context, index) {
+                          final doc = spotDocs[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          final namaTempat = data['nama'] ?? 'Tanpa Nama';
+                          final detailLokasi = data['lokasi'] ?? '-';
+                          final kapasitas = data['kapasitas'] ?? 10;
 
-                          return ListView.builder(
-                            itemCount: spotDocs.length,
-                            itemBuilder: (context, index) {
-                              final doc = spotDocs[index];
-                              final data = doc.data() as Map<String, dynamic>;
-
-                              final namaTempat = data['nama'] ?? 'Tanpa Nama';
-                              final detailLokasi = data['lokasi'] ?? '-';
-                              final kapasitas = data['kapasitas'] ?? 10;
-
-                              // Hitung ada berapa bazar (toko) aktif yang berlokasi di tempat ini
-                              final terisi = activeTenants.where((tDoc) {
-                                final tData =
-                                    tDoc.data() as Map<String, dynamic>;
-                                final tLokasi =
-                                    (tData['lokasi'] ??
-                                            tData['fakultas'] ??
-                                            tData['spot'] ??
-                                            '')
-                                        .toString()
-                                        .toLowerCase();
-                                return tLokasi.contains(
-                                  namaTempat.toString().toLowerCase(),
-                                );
-                              }).length;
-
-                              final isFull = terisi >= kapasitas;
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              title: Text(
+                                namaTempat,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              namaTempat,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isFull
-                                                  ? Colors.red.shade100
-                                                  : Colors.green.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              isFull ? 'Penuh' : 'Tersedia',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: isFull
-                                                    ? Colors.red.shade800
-                                                    : Colors.green.shade800,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.place_outlined,
-                                            size: 16,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              detailLokasi,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Jumlah Bazar: $terisi / $kapasitas Bazar',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: kDarkGreen,
-                                            ),
-                                          ),
-                                          Row(
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.edit,
-                                                  size: 20,
-                                                  color: Colors.blue,
-                                                ),
-                                                onPressed: () =>
-                                                    _showAddEditSpotDialog(
-                                                      doc: doc,
-                                                    ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.delete,
-                                                  size: 20,
-                                                  color: Colors.red,
-                                                ),
-                                                onPressed: () async {
-                                                  await FirebaseFirestore
-                                                      .instance
-                                                      .collection(
-                                                        'bazaar_spots',
-                                                      )
-                                                      .doc(doc.id)
-                                                      .delete();
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                              ),
+                              subtitle: Text(
+                                'Detail: $detailLokasi\nKapasitas: $kapasitas Lapak',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              isThreeLine: true,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Colors.blue,
+                                      size: 20,
+                                    ),
+                                    onPressed: () =>
+                                        _showAddEditSpotDialog(doc: doc),
                                   ),
-                                ),
-                              );
-                            },
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
+                                    onPressed: () async {
+                                      await FirebaseFirestore.instance
+                                          .collection('bazaar_spots')
+                                          .doc(doc.id)
+                                          .delete();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       );

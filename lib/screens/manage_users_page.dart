@@ -12,7 +12,8 @@ class ManageUsersPage extends StatefulWidget {
 
 class _ManageUsersPageState extends State<ManageUsersPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'Semua';
+  String _selectedFilter =
+      'Semua'; // Filter berubah menjadi: 'Semua', 'Aktif', 'Nonaktif'
 
   Future<void> _toggleUserStatus(
     String docId,
@@ -155,9 +156,8 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: ['Semua', 'Pembeli', 'Penjual', 'Admin'].map((
-                      filterLabel,
-                    ) {
+                    // Filter chip diubah menjadi 'Semua', 'Aktif', 'Nonaktif'
+                    children: ['Semua', 'Aktif', 'Nonaktif'].map((filterLabel) {
                       final isSelected = _selectedFilter == filterLabel;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8.0),
@@ -204,43 +204,35 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
 
                 final docs = snapshot.data!.docs;
 
-                // Logika Filter: Hanya tampilkan yang ktmStatus == 'approved'
-                // (atau akun spesial/admin yang tidak punya ktmStatus agar tetap muncul)
                 final filteredDocs = docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final ktmStatus = data['ktmStatus'] ?? 'approved'; // Default approved jika field tidak ada (akun spesial/admin)
+                  final ktmStatus = data['ktmStatus'] ?? 'approved';
 
-                  // SYARAT 1: Jika statusnya masih pending atau rejected, jangan tampilkan di sini
                   if (ktmStatus == 'pending' || ktmStatus == 'rejected') {
                     return false;
                   }
 
                   final nama = (data['nama'] ?? '').toString().toLowerCase();
                   final email = (data['email'] ?? '').toString().toLowerCase();
-                  final role = (data['role'] ?? 'buyer')
-                      .toString()
-                      .toLowerCase();
+                  final isActive = data['isActive'] ?? true;
 
                   final query = _searchController.text.toLowerCase();
                   final matchesSearch =
                       nama.contains(query) || email.contains(query);
 
+                  // Logika Filter berdasarkan status keaktifan akun
                   bool matchesFilter = true;
-                  if (_selectedFilter == 'Pembeli') {
-                    matchesFilter = role == 'buyer';
-                  } else if (_selectedFilter == 'Penjual') {
-                    matchesFilter = role == 'seller' || role == 'penjual';
-                  } else if (_selectedFilter == 'Admin') {
-                    matchesFilter = role == 'admin';
+                  if (_selectedFilter == 'Aktif') {
+                    matchesFilter = isActive == true;
+                  } else if (_selectedFilter == 'Nonaktif') {
+                    matchesFilter = isActive == false;
                   }
 
                   return matchesSearch && matchesFilter;
                 }).toList();
 
                 if (filteredDocs.isEmpty) {
-                  return const Center(
-                    child: Text('Pengguna terverifikasi tidak ditemukan'),
-                  );
+                  return const Center(child: Text('Pengguna tidak ditemukan'));
                 }
 
                 return ListView.builder(
@@ -252,7 +244,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                     final docId = doc.id;
 
                     final nama = data['nama'] ?? 'Tanpa Nama';
-                    final email = data['email'] ?? 'Email tidak tersedia'; // SYARAT 2: Perbaikan jika email kosong
+                    final email = data['email'] ?? 'Email tidak tersedia';
                     final role = data['role'] ?? 'buyer';
                     final fakultas =
                         data['fakultas'] ?? 'Universitas Sumatera Utara';
@@ -290,17 +282,21 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                         ),
                         title: Row(
                           children: [
-                            Text(
-                              nama,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                decoration: isActive
-                                    ? TextDecoration.none
-                                    : TextDecoration.lineThrough,
+                            Expanded(
+                              child: Text(
+                                nama,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  decoration: isActive
+                                      ? TextDecoration.none
+                                      : TextDecoration.lineThrough,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            _buildRoleBadge(displayRole),
+                            // Menampilkan badge status keaktifan (Aktif / Nonaktif)
+                            _buildStatusBadge(isActive),
                           ],
                         ),
                         subtitle: Column(
@@ -308,12 +304,27 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                           children: [
                             const SizedBox(height: 4),
                             Text(email, style: const TextStyle(fontSize: 12)),
-                            Text(
-                              'Fakultas: $fakultas',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
-                              ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  'Fakultas: $fakultas',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Menampilkan teks peran kecil di bawah agar tetap terlihat perannya
+                                Text(
+                                  '• Peran: $displayRole',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.blueGrey,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -373,18 +384,10 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
     );
   }
 
-  Widget _buildRoleBadge(String role) {
-    Color color;
-    switch (role) {
-      case 'Admin':
-        color = Colors.purple;
-        break;
-      case 'Penjual':
-        color = Colors.orange;
-        break;
-      default:
-        color = Colors.blue;
-    }
+  // Widget Badge untuk Status Keaktifan (Menggantikan _buildRoleBadge)
+  Widget _buildStatusBadge(bool isActive) {
+    final color = isActive ? kGreen : Colors.red;
+    final label = isActive ? 'Aktif' : 'Nonaktif';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -393,7 +396,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        role,
+        label,
         style: TextStyle(
           color: color,
           fontSize: 10,
