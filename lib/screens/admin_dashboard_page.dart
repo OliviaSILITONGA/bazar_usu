@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../constants.dart';
 import 'login_screen.dart';
@@ -7,8 +8,6 @@ import 'manage_users_page.dart';
 import 'manage_bazaar_page.dart';
 import 'reports_page.dart';
 import 'user_ktm_verification_page.dart';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
@@ -40,7 +39,7 @@ class AdminDashboardPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ringkasan Aktivitas Admin
+            // Ringkasan Aktivitas Admin (Dihubungkan ke Database secara Real-Time)
             const Text(
               'Ringkasan Sistem',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -48,13 +47,44 @@ class AdminDashboardPage extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                _buildStatCard('Total User', '128', Icons.people, Colors.blue),
+                // Stream untuk Total User
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final totalUser = snapshot.hasData
+                          ? '${snapshot.data!.docs.length}'
+                          : '...';
+                      return _buildStatCard(
+                        'Total User',
+                        totalUser,
+                        Icons.people,
+                        Colors.blue,
+                      );
+                    },
+                  ),
+                ),
                 const SizedBox(width: 12),
-                _buildStatCard(
-                  'Toko/Danusan',
-                  '24',
-                  Icons.store,
-                  Colors.orange,
+                // Stream untuk Total Toko / Danusan (Menggunakan koleksi 'tenants')
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('tenants')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final totalToko = snapshot.hasData
+                          ? '${snapshot.data!.docs.length}'
+                          : '...';
+                      return _buildStatCard(
+                        'Toko/Danusan',
+                        totalToko,
+                        Icons.store,
+                        Colors.orange,
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -96,7 +126,6 @@ class AdminDashboardPage extends StatelessWidget {
               },
             ),
 
-            // Bungkus dengan StreamBuilder agar badge-nya otomatis update sesuai jumlah data 'pending' di Firestore
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('tenants')
@@ -138,8 +167,8 @@ class AdminDashboardPage extends StatelessWidget {
               },
             ),
             _buildAdminTile(
-              title: 'Kelola Lapak Bazar & Kategori',
-              subtitle: 'Atur daftar spot bazar di lingkungan USU',
+              title: 'Kelola Bazar & Lapak Bazar', // Judul diubah sesuai permintaan
+              subtitle: 'Atur daftar bazar dan spot lapak di lingkungan USU',
               icon: Icons.category_outlined,
               onTap: () {
                 Navigator.push(
@@ -171,28 +200,28 @@ class AdminDashboardPage extends StatelessWidget {
     IconData icon,
     Color color,
   ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.1),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 12),
-            Column(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.1),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -205,11 +234,12 @@ class AdminDashboardPage extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
