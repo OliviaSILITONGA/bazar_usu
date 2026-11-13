@@ -1,12 +1,21 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
 
-// Versi aplikasi — ganti di sini kalau nanti rilis versi baru.
+// Versi aplikasi
 const String kAppVersion = 'Bazar USU v1.0.0';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final User? currentUser = FirebaseAuth.instance.currentUser;
 
   void _openChangePasswordForm(BuildContext context) {
     showModalBottomSheet(
@@ -22,6 +31,13 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: kBg,
+        body: const Center(child: Text('Pengguna belum masuk.')),
+      );
+    }
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -53,66 +69,85 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                children: [
-                  // ========== 1. AKUN & KEAMANAN ==========
-                  _SectionLabel('Akun & Keamanan'),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        _SettingsTile(
-                          icon: Icons.lock_outline,
-                          label: 'Ubah Kata Sandi',
-                          onTap: () => _openChangePasswordForm(context),
-                        ),
-                        Divider(
-                          height: 1,
-                          indent: 58,
-                          color: kDarkGreen.withValues(alpha: 0.08),
-                        ),
-                        const _VerificationStatusTile(
-                          label: 'Email',
-                          value: 'email@students.usu.ac.id',
-                          isVerified: true,
-                        ),
-                        Divider(
-                          height: 1,
-                          indent: 58,
-                          color: kDarkGreen.withValues(alpha: 0.08),
-                        ),
-                        const _VerificationStatusTile(
-                          label: 'Nomor Ponsel',
-                          value: '+62 8xx-xxxx-xxxx',
-                          isVerified: false,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(currentUser!.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final data = snapshot.hasData && snapshot.data!.exists
+                      ? snapshot.data!.data() as Map<String, dynamic>
+                      : {};
 
-                  // ========== 2. INFORMASI TAMBAHAN & TINDAKAN AKUN ==========
-                  _SectionLabel('Informasi Tambahan & Tindakan Akun'),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.12),
+                  // Mengambil email dari auth atau database
+                  final email =
+                      currentUser!.email ??
+                      data['email'] ??
+                      'email@students.usu.ac.id';
+                  final isEmailVerified = currentUser!.emailVerified;
+
+                  // Mengambil nomor telepon dari field 'telepon' sesuai database Firestore kamu
+                  final telepon = data['telepon'] ?? '+62 8xx-xxxx-xxxx';
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                    children: [
+                      // ========== 1. AKUN & KEAMANAN ==========
+                      const _SectionLabel('Akun & Keamanan'),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: kDarkGreen.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            _SettingsTile(
+                              icon: Icons.lock_outline,
+                              label: 'Ubah Kata Sandi',
+                              onTap: () => _openChangePasswordForm(context),
+                            ),
+                            Divider(
+                              height: 1,
+                              indent: 58,
+                              color: kDarkGreen.withValues(alpha: 0.08),
+                            ),
+                            _VerificationStatusTile(
+                              label: 'Email',
+                              value: email,
+                              isVerified: isEmailVerified,
+                            ),
+                            Divider(
+                              height: 1,
+                              indent: 58,
+                              color: kDarkGreen.withValues(alpha: 0.08),
+                            ),
+                            // Tile khusus Nomor Ponsel tanpa badge status verifikasi
+                            _PhoneProfileTile(value: telepon),
+                          ],
+                        ),
                       ),
-                    ),
-                    child: const _VersionInfoTile(),
-                  ),
-                ],
+                      const SizedBox(height: 24),
+
+                      // ========== 2. INFORMASI TAMBAHAN & TINDAKAN AKUN ==========
+                      const _SectionLabel('Informasi Tambahan & Tindakan Akun'),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: kDarkGreen.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: const _VersionInfoTile(),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -140,7 +175,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ==================== TILE MENU BIASA (contoh: Ubah Kata Sandi) ====================
+// ==================== TILE MENU BIASA ====================
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -191,7 +226,7 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-// ==================== STATUS VERIFIKASI (email / no hp) ====================
+// ==================== STATUS VERIFIKASI (EMAIL) ====================
 class _VerificationStatusTile extends StatelessWidget {
   final String label;
   final String value;
@@ -215,12 +250,10 @@ class _VerificationStatusTile extends StatelessWidget {
               color: kLightGreen,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              label == 'Email'
-                  ? Icons.email_outlined
-                  : Icons.phone_iphone_outlined,
+            child: const Icon(
+              Icons.email_outlined,
               size: 17,
-              color: kDarkGreen.withValues(alpha: 0.85),
+              color: kDarkGreen,
             ),
           ),
           const SizedBox(width: 14),
@@ -271,6 +304,57 @@ class _VerificationStatusTile extends StatelessWidget {
                     color: isVerified
                         ? const Color(0xFF34A853)
                         : const Color(0xFFE09A2E),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== TILE NOMOR PONSEL (Mengambil dari database profil) ====================
+class _PhoneProfileTile extends StatelessWidget {
+  final String value;
+  const _PhoneProfileTile({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: kLightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.phone_iphone_outlined,
+              size: 17,
+              color: kDarkGreen,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nomor Ponsel',
+                  style: TextStyle(fontSize: 11.5, color: Colors.black54),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: kDarkGreen,
                   ),
                 ),
               ],
@@ -344,6 +428,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -381,7 +466,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final oldPassword = _oldPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -399,15 +484,42 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
       return;
     }
 
-    // Catatan: belum terhubung ke backend/auth sungguhan.
-    // Nanti di sini tinggal panggil API ganti password.
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Kata sandi berhasil diperbarui.'),
-        backgroundColor: kDarkGreen,
-      ),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.email != null) {
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: oldPassword,
+        );
+        await user.reauthenticateWithCredential(credential);
+        await user.updatePassword(newPassword);
+
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kata sandi berhasil diperbarui.'),
+            backgroundColor: kDarkGreen,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'Terjadi kesalahan.';
+      if (e.code == 'wrong-password') {
+        message = 'Kata sandi lama salah.';
+      } else if (e.code == 'requires-recent-login') {
+        message = 'Sesi telah kedaluwarsa. Silakan login ulang.';
+      } else {
+        message = e.message ?? message;
+      }
+      _showError(message);
+    } catch (e) {
+      _showError('Gagal memperbarui kata sandi: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showError(String message) {
@@ -439,7 +551,6 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
             Text(
               'Kata Sandi Lama',
               style: TextStyle(
@@ -459,7 +570,6 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               ),
             ),
             const SizedBox(height: 14),
-
             Text(
               'Kata Sandi Baru',
               style: TextStyle(
@@ -479,7 +589,6 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               ),
             ),
             const SizedBox(height: 14),
-
             Text(
               'Konfirmasi Kata Sandi Baru',
               style: TextStyle(
@@ -500,12 +609,11 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
             SizedBox(
               width: double.infinity,
               height: 46,
               child: ElevatedButton(
-                onPressed: _submit,
+                onPressed: _isLoading ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kDarkGreen,
                   foregroundColor: Colors.white,
@@ -513,10 +621,19 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text(
-                  'Simpan Perubahan',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Simpan Perubahan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],
