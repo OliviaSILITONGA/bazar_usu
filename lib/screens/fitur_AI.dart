@@ -214,7 +214,7 @@ class _TopBar extends StatelessWidget {
         Image.asset(
           'assets/icon/icon.png',
           height: 50,
-          errorBuilder: (_, __, ___) => const Text(
+          errorBuilder: (_, _, _) => const Text(
             'Bazar USU',
             style: TextStyle(
               fontSize: 18,
@@ -540,7 +540,7 @@ class _ProductCard extends StatelessWidget {
               data.image,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 width: double.infinity,
                 color: kLightGreen,
                 child: Icon(

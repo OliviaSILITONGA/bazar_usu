@@ -40,7 +40,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
             controller: nameController,
             decoration: const InputDecoration(
               labelText: 'Nama Jenis / Kategori',
-              hintText: 'Contoh: Minuman & Danusan',
+              hintText: 'Contoh: Makanan Berat',
             ),
           ),
           actions: [
@@ -51,14 +51,15 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: kGreen),
               onPressed: () async {
-                if (nameController.text.isNotEmpty) {
+                final namaKat = nameController.text.trim();
+                if (namaKat.isNotEmpty) {
                   await FirebaseFirestore.instance
                       .collection('bazaar_categories')
-                      .add({
-                        'nama': nameController.text.trim(),
-                        'jumlahToko': 0,
+                      .doc(namaKat)
+                      .set({
+                        'nama': namaKat,
                         'createdAt': FieldValue.serverTimestamp(),
-                      });
+                      }, SetOptions(merge: true));
                   if (!context.mounted) return;
                   Navigator.pop(context);
                 }
@@ -289,7 +290,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
           ),
 
           // =================================================================
-          // TAB 2: JENIS BAZAR (Gaya Kartu Kategori Sesuai Gambar Referensi)
+          // TAB 2: JENIS BAZAR (Otomatis Terisi dari Pendaftaran Penjual)
           // =================================================================
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -324,74 +325,102 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                         .collection('bazaar_categories')
                         .orderBy('createdAt', descending: true)
                         .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                    builder: (context, catSnapshot) {
+                      if (catSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(color: kGreen),
                         );
                       }
 
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      if (!catSnapshot.hasData ||
+                          catSnapshot.data!.docs.isEmpty) {
                         return const Center(
                           child: Text('Belum ada kategori bazar terdaftar'),
                         );
                       }
 
-                      final catDocs = snapshot.data!.docs;
+                      final catDocs = catSnapshot.data!.docs;
 
-                      return ListView.builder(
-                        itemCount: catDocs.length,
-                        itemBuilder: (context, index) {
-                          final doc = catDocs[index];
-                          final data = doc.data() as Map<String, dynamic>;
-                          final namaKat = data['nama'] ?? 'Tanpa Nama';
-                          final jumlahToko = data['jumlahToko'] ?? 0;
+                      // Pantau koleksi 'tenants' untuk menghitung jumlah toko per kategori secara akurat
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('tenants')
+                            .snapshots(),
+                        builder: (context, tenantSnapshot) {
+                          final allTenants = tenantSnapshot.hasData
+                              ? tenantSnapshot.data!.docs
+                              : [];
 
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              leading: CircleAvatar(
-                                backgroundColor: kGreen.withValues(alpha: 0.1),
-                                child: const Icon(
-                                  Icons.category,
-                                  color: kGreen,
+                          return ListView.builder(
+                            itemCount: catDocs.length,
+                            itemBuilder: (context, index) {
+                              final doc = catDocs[index];
+                              final data = doc.data() as Map<String, dynamic>;
+                              final namaKat = data['nama'] ?? doc.id;
+
+                              // Hitung berapa toko di 'tenants' yang memilih kategori ini
+                              final jumlahToko = allTenants.where((tDoc) {
+                                final tData =
+                                    tDoc.data() as Map<String, dynamic>;
+                                final tKat =
+                                    (tData['kategori'] ??
+                                            tData['category'] ??
+                                            '')
+                                        .toString()
+                                        .toLowerCase();
+                                return tKat == namaKat.toString().toLowerCase();
+                              }).length;
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                              ),
-                              title: Text(
-                                namaKat,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                elevation: 0,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  leading: CircleAvatar(
+                                    backgroundColor: kGreen.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    child: const Icon(
+                                      Icons.category,
+                                      color: kGreen,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    namaKat,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '$jumlahToko toko menggunakan kategori ini',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () async {
+                                      await FirebaseFirestore.instance
+                                          .collection('bazaar_categories')
+                                          .doc(doc.id)
+                                          .delete();
+                                    },
+                                  ),
                                 ),
-                              ),
-                              subtitle: Text(
-                                '$jumlahToko toko menggunakan kategori ini',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.red,
-                                ),
-                                onPressed: () async {
-                                  await FirebaseFirestore.instance
-                                      .collection('bazaar_categories')
-                                      .doc(doc.id)
-                                      .delete();
-                                },
-                              ),
-                            ),
+                              );
+                            },
                           );
                         },
                       );

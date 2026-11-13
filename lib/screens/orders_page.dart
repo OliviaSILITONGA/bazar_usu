@@ -65,7 +65,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       vertical: 12,
                     ),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) =>
                         _OrderCard(order: filtered[index]),
                   );
@@ -114,7 +114,7 @@ class _TabRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 20),
+        separatorBuilder: (_, _) => const SizedBox(width: 20),
         itemBuilder: (context, index) {
           final isSelected = index == selectedIndex;
           return GestureDetector(

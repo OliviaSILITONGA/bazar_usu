@@ -19,7 +19,7 @@ class AuthCard extends StatelessWidget {
           Image.asset(
             'assets/images/hero_food.jpg',
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: kLightGreen),
+            errorBuilder: (_, _, _) => Container(color: kLightGreen),
           ),
           Container(
             decoration: const BoxDecoration(
@@ -54,7 +54,7 @@ class AuthCard extends StatelessWidget {
                         child: Image.asset(
                           'assets/icon/icon.png',
                           height: 150,
-                          errorBuilder: (_, __, ___) => Column(
+                          errorBuilder: (_, _, _) => Column(
                             children: [
                               Container(
                                 width: 56,

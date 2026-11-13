@@ -66,7 +66,7 @@ class SellerProfilePage extends StatelessWidget {
                 builder: (context, app, _) {
                   return ValueListenableBuilder<SellerProfileExtra>(
                     valueListenable: SellerProfileExtraState.instance.data,
-                    builder: (context, extra, __) {
+                    builder: (context, extra, _) {
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(

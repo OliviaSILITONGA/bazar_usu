@@ -65,7 +65,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
       radius: widget.radius,
       backgroundColor: kLightGreen,
       backgroundImage: _provider,
-      onBackgroundImageError: _provider == null ? null : (_, __) {},
+      onBackgroundImageError: _provider == null ? null : (_, _) {},
       child: _provider == null
           ? Icon(
               Icons.person,

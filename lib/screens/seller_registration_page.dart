@@ -1,12 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
-import 'seller_main_navigation_page.dart';
 import '../services/database_service.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:bazar_usu/services/database_service.dart';
 
 class SellerRegistrationPage extends StatefulWidget {
   const SellerRegistrationPage({super.key});
@@ -43,7 +42,6 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      // Ambil UID user yang sedang aktif login saat ini
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -55,14 +53,30 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
         return;
       }
 
-      // Simpan data toko ke Cloud Firestore koleksi 'tenants' dengan status 'pending'
+      // 1. Simpan data toko ke Cloud Firestore koleksi 'tenants'
       await DatabaseService().registerTenant(
         uid: user.uid,
         namaToko: _namaTokoController.text.trim(),
         deskripsi: _alasanController.text.trim(),
       );
 
-      // Simpan juga ke state lokal jika dipakai oleh aplikasi kamu
+      // Pastikan field 'kategori' dan 'nomorHp' tersimpan di dokumen tenant tersebut
+      await FirebaseFirestore.instance.collection('tenants').doc(user.uid).set({
+        'kategori': _kategori,
+        'nomorHp': _nomorHpController.text.trim(),
+      }, SetOptions(merge: true));
+
+      // 2. Otomatis daftarkan / update Jenis Bazar di koleksi 'bazaar_categories'
+      await FirebaseFirestore.instance
+          .collection('bazaar_categories')
+          .doc(_kategori) // Pakai nama kategori sebagai ID agar tidak duplikat
+          .set({
+            'nama': _kategori,
+            'jumlahToko': FieldValue.increment(1),
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      // Simpan juga ke state lokal jika dipakai
       SellerAccountState.instance.submitApplication(
         namaToko: _namaTokoController.text.trim(),
         kategori: _kategori,
@@ -72,7 +86,6 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
 
       if (!mounted) return;
 
-      // Tampilkan dialog pemberitahuan bahwa pendaftaran sedang ditinjau
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -88,11 +101,8 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext); // tutup dialog
-                // Arahkan kembali atau ke halaman status tunggu persetujuan
-                Navigator.pop(
-                  context,
-                ); // Kembali ke halaman sebelumnya / beranda
+                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text('OK'),
             ),

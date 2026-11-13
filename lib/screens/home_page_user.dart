@@ -367,7 +367,7 @@ class _PromoCard extends StatelessWidget {
         image: DecorationImage(
           image: AssetImage(image),
           fit: BoxFit.cover,
-          onError: (_, __) {},
+          onError: (_, _) {},
         ),
       ),
       child: Container(
@@ -654,7 +654,7 @@ class _ProductCard extends StatelessWidget {
                 data.image,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   width: double.infinity,
                   color: kLightGreen,
                   child: Icon(
@@ -829,7 +829,7 @@ class _PopularStoresRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _stores.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        separatorBuilder: (_, _) => const SizedBox(width: 16),
         itemBuilder: (context, index) => _StoreAvatar(data: _stores[index]),
       ),
     );
@@ -873,7 +873,7 @@ class _StoreAvatar extends StatelessWidget {
               child: Image.asset(
                 data.image,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(
+                errorBuilder: (_, _, _) => Icon(
                   Icons.storefront_outlined,
                   color: kDarkGreen.withValues(alpha: 0.6),
                   size: 26,

@@ -33,7 +33,7 @@ class _HomePageState extends State<HomePage> {
           Image.asset(
             'assets/images/hero_food.jpg',
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: kLightGreen),
+            errorBuilder: (_, _, _) => Container(color: kLightGreen),
           ),
           Container(
             decoration: const BoxDecoration(
@@ -90,7 +90,7 @@ class _TopNavBar extends StatelessWidget {
               width: 50,
               height: 50,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 width: 50,
                 height: 50,
                 decoration: const BoxDecoration(
@@ -191,7 +191,7 @@ class _SlideHero extends StatelessWidget {
               width: double.infinity,
               height: 180,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
+              errorBuilder: (_, _, _) =>
                   Container(height: 180, color: kCardGreen),
             ),
           ),
@@ -269,7 +269,7 @@ class _SlideFitur extends StatelessWidget {
           Image.asset(
             'assets/images/LogoUSU.gif',
             width: 180,
-            errorBuilder: (_, __, ___) => const SizedBox(height: 0),
+            errorBuilder: (_, _, _) => const SizedBox(height: 0),
           ),
           const SizedBox(height: 12),
           const Text(

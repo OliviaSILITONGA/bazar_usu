@@ -12,9 +12,7 @@ class SellerProductsPage extends StatelessWidget {
   void _openProductForm(BuildContext context, {SellerProduct? existing}) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddEditProductPage(existing: existing),
-      ),
+      MaterialPageRoute(builder: (_) => AddEditProductPage(existing: existing)),
     );
   }
 
@@ -22,9 +20,7 @@ class SellerProductsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Hapus Produk'),
         content: Text('Yakin ingin menghapus "${product.name}"?'),
         actions: [
@@ -183,7 +179,7 @@ class _ProductThumb extends StatelessWidget {
               width: 52,
               height: 52,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Icon(
+              errorBuilder: (_, _, _) => Icon(
                 Icons.image_outlined,
                 color: kDarkGreen.withValues(alpha: 0.4),
               ),
