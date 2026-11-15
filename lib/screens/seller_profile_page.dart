@@ -1,15 +1,42 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/seller_state.dart';
-import '../services/seller_profile_extra_state.dart';
+import '../services/database_service.dart';
 import 'login_screen.dart';
 import 'main_navigation_page.dart';
 import 'seller_profile_view_page.dart';
 import 'seller_edit_profile_page.dart';
 
-class SellerProfilePage extends StatelessWidget {
+class SellerProfilePage extends StatefulWidget {
   const SellerProfilePage({super.key});
+
+  @override
+  State<SellerProfilePage> createState() => _SellerProfilePageState();
+}
+
+class _SellerProfilePageState extends State<SellerProfilePage> {
+  late final Stream<Map<String, dynamic>?>? _tenantStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    _tenantStream = uid == null ? null : DatabaseService().tenantStream(uid);
+  }
+
+  Uint8List? _decodePhoto(String? base64Str) {
+    if (base64Str == null || base64Str.isEmpty) return null;
+    try {
+      return base64Decode(base64Str);
+    } catch (e) {
+      debugPrint('Foto toko tidak valid: $e');
+      return null;
+    }
+  }
 
   void _switchToBuyer(BuildContext context) {
     showDialog(
@@ -49,10 +76,113 @@ class SellerProfilePage extends StatelessWidget {
     );
   }
 
+  // Kartu profil toko di bagian atas
+  Widget _buildShopCard(BuildContext context, Map<String, dynamic>? data) {
+    final namaToko = (data?['namaToko'] as String?)?.trim() ?? '';
+    final kategori = (data?['kategori'] as String?)?.trim() ?? '';
+    final photoBytes = _decodePhoto(data?['fotoBase64'] as String?);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SellerProfileViewPage(),
+                  ),
+                );
+              },
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: kLightGreen,
+                      border: Border.all(
+                        color: kDarkGreen.withValues(alpha: 0.3),
+                      ),
+                      image: photoBytes != null
+                          ? DecorationImage(
+                              image: MemoryImage(photoBytes),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: photoBytes == null
+                        ? Icon(
+                            Icons.storefront,
+                            color: kDarkGreen.withValues(alpha: 0.7),
+                            size: 26,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          namaToko.isNotEmpty ? namaToko : 'Toko Kamu',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: kDarkGreen,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          kategori.isNotEmpty ? kategori : '-',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: kDarkGreen.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SellerEditProfilePage(),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.edit_outlined,
+                color: kDarkGreen.withValues(alpha: 0.6),
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = SellerAccountState.instance;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -61,122 +191,16 @@ class SellerProfilePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ValueListenableBuilder<SellerApplication?>(
-                valueListenable: state.myApplication,
-                builder: (context, app, _) {
-                  return ValueListenableBuilder<SellerProfileExtra>(
-                    valueListenable: SellerProfileExtraState.instance.data,
-                    builder: (context, extra, __) {
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: kDarkGreen.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const SellerProfileViewPage(),
-                                    ),
-                                  );
-                                },
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: kLightGreen,
-                                        border: Border.all(
-                                          color: kDarkGreen.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                        ),
-                                        image: extra.photo != null
-                                            ? DecorationImage(
-                                                image: FileImage(extra.photo!),
-                                                fit: BoxFit.cover,
-                                              )
-                                            : null,
-                                      ),
-                                      child: extra.photo == null
-                                          ? Icon(
-                                              Icons.storefront,
-                                              color: kDarkGreen.withValues(
-                                                alpha: 0.7,
-                                              ),
-                                              size: 26,
-                                            )
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            app?.namaToko ?? 'Toko Kamu',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: kDarkGreen,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            app?.kategori ?? '-',
-                                            style: TextStyle(
-                                              fontSize: 12.5,
-                                              color: kDarkGreen.withValues(
-                                                alpha: 0.65,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const SellerEditProfilePage(),
-                                  ),
-                                );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.edit_outlined,
-                                  color: kDarkGreen.withValues(alpha: 0.6),
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+              if (_tenantStream == null)
+                _buildShopCard(context, null)
+              else
+                StreamBuilder<Map<String, dynamic>?>(
+                  stream: _tenantStream,
+                  builder: (context, snapshot) {
+                    // Saat loading/error, tetap tampilkan kartu dengan nilai cadangan
+                    return _buildShopCard(context, snapshot.data);
+                  },
+                ),
               const SizedBox(height: 24),
               Container(
                 decoration: BoxDecoration(

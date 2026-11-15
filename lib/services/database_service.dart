@@ -28,15 +28,30 @@ class DatabaseService {
   Future<void> registerTenant({
     required String uid,
     required String namaToko,
+    required String kategori,
+    required String nomorHp,
     required String deskripsi,
   }) async {
     await _db.collection('tenants').doc(uid).set({
       'uid': uid,
       'namaToko': namaToko,
+      'kategori': kategori,
+      'nomorHp': nomorHp,
       'deskripsi': deskripsi,
       'status': 'pending', // Status menunggu verifikasi admin
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // Mengambil data toko/tenant berdasarkan UID pemilik
+  Future<Map<String, dynamic>?> getTenant(String uid) async {
+    final doc = await _db.collection('tenants').doc(uid).get();
+    return doc.data();
+  }
+
+  // Memantau data toko/tenant secara real-time
+  Stream<Map<String, dynamic>?> tenantStream(String uid) {
+    return _db.collection('tenants').doc(uid).snapshots().map((s) => s.data());
   }
 
   // Memperbarui profil user di Cloud Firestore
@@ -48,34 +63,29 @@ class DatabaseService {
     required String address,
     required String phone,
   }) async {
-    // Ganti .update() dengan .set(..., SetOptions(merge: true))
-    return await FirebaseFirestore.instance.collection('users').doc(uid).set({
+    await _db.collection('users').doc(uid).set({
       'nama': nama,
       'username': username,
       'bio': bio,
       'alamat': address,
       'telepon': phone,
-      'role': 'buyer', // pastikan field role tetap ada
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  // Memperbarui data toko/tenant di Cloud Firestore
+  // Memperbarui profil toko (hanya deskripsi & foto).
+  // Nama toko & kategori sengaja tidak bisa diubah dari sini.
   Future<void> updateTenantData({
     required String uid,
-    String? namaToko,
-    String? kategori,
-    String? nomorHp,
     required String deskripsi,
+    String? fotoBase64,
   }) async {
     final Map<String, dynamic> dataToUpdate = {
       'deskripsi': deskripsi,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    if (namaToko != null) dataToUpdate['namaToko'] = namaToko;
-    if (kategori != null) dataToUpdate['kategori'] = kategori;
-    if (nomorHp != null) dataToUpdate['nomorHp'] = nomorHp;
+    if (fotoBase64 != null) dataToUpdate['fotoBase64'] = fotoBase64;
 
     await _db.collection('tenants').doc(uid).update(dataToUpdate);
   }

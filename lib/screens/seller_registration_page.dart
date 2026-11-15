@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../constants.dart';
 import '../services/seller_state.dart';
-import 'seller_main_navigation_page.dart';
 import '../services/database_service.dart';
-
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:bazar_usu/services/database_service.dart';
 
 class SellerRegistrationPage extends StatefulWidget {
   const SellerRegistrationPage({super.key});
@@ -20,6 +17,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
   final _namaTokoController = TextEditingController();
   final _nomorHpController = TextEditingController();
   final _alasanController = TextEditingController();
+  bool _submitting = false;
 
   static const _kategoriOptions = [
     'Makanan Berat',
@@ -40,12 +38,17 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
   }
 
   void _submit() async {
+    if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _submitting = true);
 
     try {
       // Ambil UID user yang sedang aktif login saat ini
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Sesi login tidak ditemukan. Silakan login ulang.'),
@@ -59,6 +62,8 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
       await DatabaseService().registerTenant(
         uid: user.uid,
         namaToko: _namaTokoController.text.trim(),
+        kategori: _kategori,
+        nomorHp: _nomorHpController.text.trim(),
         deskripsi: _alasanController.text.trim(),
       );
 
@@ -71,6 +76,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
       );
 
       if (!mounted) return;
+      setState(() => _submitting = false);
 
       // Tampilkan dialog pemberitahuan bahwa pendaftaran sedang ditinjau
       showDialog(
@@ -89,10 +95,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext); // tutup dialog
-                // Arahkan kembali atau ke halaman status tunggu persetujuan
-                Navigator.pop(
-                  context,
-                ); // Kembali ke halaman sebelumnya / beranda
+                Navigator.pop(context); // kembali ke halaman sebelumnya
               },
               child: const Text('OK'),
             ),
@@ -101,6 +104,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal mendaftarkan toko: $e'),
@@ -184,7 +188,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
               SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _submit,
+                  onPressed: _submitting ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kDarkGreen,
                     foregroundColor: Colors.white,
@@ -192,10 +196,19 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  child: const Text(
-                    'Kirim Pendaftaran',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Kirim Pendaftaran',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
