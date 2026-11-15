@@ -84,6 +84,8 @@ class _FiturAIState extends State<FiturAI> {
       return;
     }
 
+    FocusScope.of(context).unfocus(); // tutup keyboard
+
     setState(() {
       _isSearching = true;
       _hasSearched = false;
@@ -91,6 +93,7 @@ class _FiturAIState extends State<FiturAI> {
 
     // Simulasi delay "BABU sedang berpikir" supaya terasa seperti AI
     await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
 
     final queryWords = query
         .toLowerCase()
@@ -208,9 +211,18 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tombol kembali hanya muncul kalau memang ada halaman sebelumnya
+    final canGoBack = Navigator.of(context).canPop();
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        if (canGoBack)
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+            color: kDarkGreen,
+            tooltip: 'Kembali',
+          ),
         Image.asset(
           'assets/icon/icon.png',
           height: 50,
@@ -223,6 +235,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
         ),
+        const Spacer(),
         Container(
           width: 44,
           height: 44,
@@ -261,7 +274,7 @@ class _TitleSection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          '✨ Mau ajan apa hari ini?\nKetik mood, selera, atau kriteria makananmu!',
+          '✨ Mau jajan apa hari ini?\nKetik mood, selera, atau kriteria makananmu!',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -282,35 +295,43 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(24),
+      borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.4)),
+    );
+
+    return SizedBox(
       height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, color: kDarkGreen.withValues(alpha: 0.7)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              style: const TextStyle(fontSize: 14, color: kDarkGreen),
-              textInputAction: TextInputAction.search,
-              onSubmitted: onSubmitted,
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: 'jajanan korea viral yang asam manis...',
-                hintStyle: TextStyle(
-                  color: kDarkGreen.withValues(alpha: 0.5),
-                  fontSize: 13,
-                ),
-              ),
-            ),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(fontSize: 14, color: kDarkGreen),
+        textInputAction: TextInputAction.search,
+        textAlignVertical: TextAlignVertical.center,
+        onSubmitted: onSubmitted,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
           ),
-        ],
+          prefixIcon: Icon(
+            Icons.search,
+            color: kDarkGreen.withValues(alpha: 0.7),
+          ),
+          hintText: 'jajanan korea viral yang asam manis...',
+          hintStyle: TextStyle(
+            color: kDarkGreen.withValues(alpha: 0.5),
+            fontSize: 13,
+          ),
+          border: border,
+          enabledBorder: border,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(color: kDarkGreen, width: 1.5),
+          ),
+        ),
       ),
     );
   }
@@ -324,7 +345,7 @@ class _SearchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46,
+      height: 48,
       child: ElevatedButton.icon(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -628,7 +649,14 @@ class _BottomNavBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Icon(Icons.home, color: kDarkGreen, size: 26),
+            GestureDetector(
+              onTap: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Icon(Icons.home, color: kDarkGreen, size: 26),
+            ),
             GestureDetector(
               onTap: () {
                 Navigator.push(
