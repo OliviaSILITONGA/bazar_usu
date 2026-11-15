@@ -65,7 +65,10 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
 
         setState(() {
           _namaToko = (data['namaToko'] as String?) ?? '-';
-          _kategori = (data['kategori'] as String?) ?? '-';
+          _kategori =
+              (data['kategori'] as String?) ??
+              (data['category'] as String?) ??
+              '-'; // <-- Tambahkan ini agar kategori terisi
           _descriptionController.text = (data['deskripsi'] as String?) ?? '';
           _photoBytes = fotoBytes;
         });

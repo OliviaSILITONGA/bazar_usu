@@ -200,7 +200,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
         controller: _tabController,
         children: [
           // =================================================================
-          // TAB 1: DAFTAR BAZAR / DANUSAN (Nama Toko dari 'tenants')
+          // TAB 1: DAFTAR BAZAR / DANUSAN (Nama Toko & Pemilik dari 'tenants')
           // =================================================================
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -224,13 +224,22 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                 itemCount: docs.length,
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
+                  final tenantId = docs[index].id;
+
                   final namaBazar =
                       data['storeName'] ??
                       data['namaToko'] ??
                       data['nama'] ??
                       'Bazar Tanpa Nama';
-                  final pemilik =
-                      data['ownerName'] ?? data['namaPemilik'] ?? '-';
+
+                  // Perbaikan pencarian nama pemilik dengan memeriksa berbagai kemungkinan nama field
+                  final pemilikLangsung =
+                      data['namaPemilik'] ??
+                      data['ownerName'] ??
+                      data['namaOwner'] ??
+                      data['owner'] ??
+                      data['nama'];
+
                   final lokasi =
                       data['lokasi'] ?? data['fakultas'] ?? 'Area USU';
                   final status = data['status'] ?? 'pending';
@@ -242,47 +251,42 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 0,
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isApproved
-                            ? kGreen.withValues(alpha: 0.1)
-                            : Colors.orange.withValues(alpha: 0.1),
-                        child: Icon(
-                          Icons.storefront,
-                          color: isApproved ? kGreen : Colors.orange,
-                        ),
-                      ),
-                      title: Text(
-                        namaBazar,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        'Pemilik: $pemilik\nLokasi: $lokasi',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isApproved
-                              ? Colors.green.shade100
-                              : Colors.orange.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          isApproved ? 'Aktif' : 'Pending',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isApproved
-                                ? Colors.green.shade800
-                                : Colors.orange.shade800,
+                    child:
+                        pemilikLangsung != null &&
+                            pemilikLangsung.toString().trim().isNotEmpty
+                        ? _buildTenantTile(
+                            namaBazar,
+                            pemilikLangsung.toString(),
+                            lokasi,
+                            isApproved,
+                          )
+                        : FutureBuilder<DocumentSnapshot>(
+                            // Jika data pemilik tidak ada langsung di tenant, ambil dari dokumen 'users' berdasarkan ID tenant/UID
+                            future: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(tenantId)
+                                .get(),
+                            builder: (context, userSnapshot) {
+                              String pemilikNama = '-';
+                              if (userSnapshot.hasData &&
+                                  userSnapshot.data!.exists) {
+                                final userData =
+                                    userSnapshot.data!.data()
+                                        as Map<String, dynamic>?;
+                                pemilikNama =
+                                    userData?['nama'] ??
+                                    userData?['name'] ??
+                                    userData?['email'] ??
+                                    '-';
+                              }
+                              return _buildTenantTile(
+                                namaBazar,
+                                pemilikNama,
+                                lokasi,
+                                isApproved,
+                              );
+                            },
                           ),
-                        ),
-                      ),
-                    ),
                   );
                 },
               );
@@ -342,7 +346,6 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
 
                       final catDocs = catSnapshot.data!.docs;
 
-                      // Pantau koleksi 'tenants' untuk menghitung jumlah toko per kategori secara akurat
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('tenants')
@@ -359,7 +362,6 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                               final data = doc.data() as Map<String, dynamic>;
                               final namaKat = data['nama'] ?? doc.id;
 
-                              // Hitung berapa toko di 'tenants' yang memilih kategori ini
                               final jumlahToko = allTenants.where((tDoc) {
                                 final tData =
                                     tDoc.data() as Map<String, dynamic>;
@@ -544,6 +546,49 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Widget pembantu untuk menampilkan list tile tenant di tab Daftar Bazar
+  Widget _buildTenantTile(
+    String namaBazar,
+    String pemilik,
+    String lokasi,
+    bool isApproved,
+  ) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: isApproved
+            ? kGreen.withValues(alpha: 0.1)
+            : Colors.orange.withValues(alpha: 0.1),
+        child: Icon(
+          Icons.storefront,
+          color: isApproved ? kGreen : Colors.orange,
+        ),
+      ),
+      title: Text(
+        namaBazar,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        'Pemilik: $pemilik\nLokasi: $lokasi',
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isApproved ? Colors.green.shade100 : Colors.orange.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          isApproved ? 'Aktif' : 'Pending',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isApproved ? Colors.green.shade800 : Colors.orange.shade800,
+          ),
+        ),
       ),
     );
   }

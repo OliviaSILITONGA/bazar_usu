@@ -206,7 +206,8 @@ class _FirestoreReportCard extends StatelessWidget {
     final status = data['status'] ?? 'Menunggu';
     if (status == 'Diproses') return const Color(0xFF3B82F6);
     if (status == 'Selesai') return const Color(0xFF34A853);
-    return const Color(0xFFE09A2E);
+    if (status == 'Ditolak') return Colors.red;
+    return const Color(0xFFE09A2E); // Menunggu / Pending
   }
 
   @override
@@ -239,6 +240,7 @@ class _FirestoreReportCard extends StatelessWidget {
                   ),
                 ),
               ),
+              // Badge Status Laporan (Pending/Menunggu, Selesai, Ditolak, dll)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -381,16 +383,16 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
     try {
       final user = FirebaseAuth.instance.currentUser;
 
-      // Simpan data laporan langsung ke Cloud Firestore
+      // Memastikan userId tersimpan dengan benar saat pengiriman laporan baru
       await FirebaseFirestore.instance.collection('reports').add({
         'userId': user?.uid ?? '',
         'pelapor': user?.email ?? 'Mahasiswa USU',
         'category': _category.label,
         'referenceId': _referenceController.text.trim(),
         'description': description,
-        'status': 'Menunggu',
+        'status': 'Menunggu', // Status awal laporan baru
         'createdAt': FieldValue.serverTimestamp(),
-        'imageUrl': null, // Jika ada upload storage bisa dimasukkan di sini
+        'imageUrl': null,
       });
 
       if (!mounted) return;
