@@ -149,6 +149,44 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
     return null;
   }
 
+  // Kotak deskripsi: satu TextField saja (tanpa Container pembungkus)
+  Widget _buildDescriptionField() {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+    );
+
+    return TextField(
+      controller: _descriptionController,
+      maxLines: 5,
+      minLines: 4,
+      maxLength: 200,
+      textCapitalization: TextCapitalization.sentences,
+      style: const TextStyle(fontSize: 13.5, color: kDarkGreen, height: 1.4),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        hintText: 'Ceritakan tentang tokomu...',
+        hintStyle: TextStyle(color: kDarkGreen.withValues(alpha: 0.4)),
+        counterStyle: TextStyle(
+          fontSize: 11,
+          color: kDarkGreen.withValues(alpha: 0.5),
+        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: kDarkGreen, width: 1.5),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatar = _avatarImage;
@@ -265,45 +303,20 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
                             ),
                           ),
                           const SizedBox(height: 18),
-                          Text(
-                            'Deskripsi Toko',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: kDarkGreen.withValues(alpha: 0.6),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              'Deskripsi Toko',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: kDarkGreen.withValues(alpha: 0.6),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: kDarkGreen.withValues(alpha: 0.1),
-                              ),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: TextField(
-                              controller: _descriptionController,
-                              maxLines: 4,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                color: kDarkGreen,
-                              ),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                border: InputBorder.none,
-                                hintText: 'Ceritakan tentang tokomu...',
-                                hintStyle: TextStyle(
-                                  color: kDarkGreen.withValues(alpha: 0.4),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
+                          _buildDescriptionField(),
+                          const SizedBox(height: 16),
                           SizedBox(
                             height: 46,
                             child: ElevatedButton(
