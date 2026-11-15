@@ -155,7 +155,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   : ListView.separated(
                       padding: EdgeInsets.zero,
                       itemCount: _filteredChats.length,
-                      separatorBuilder: (_, __) => Divider(
+                      separatorBuilder: (_, _) => Divider(
                         height: 1,
                         color: kDarkGreen.withValues(alpha: 0.1),
                         indent: 80,

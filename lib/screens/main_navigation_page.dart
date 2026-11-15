@@ -5,7 +5,6 @@ import 'home_page_user.dart';
 import 'orders_page.dart';
 import 'chat_list_page.dart';
 import 'profile_page.dart';
-import 'fitur_AI.dart';
 
 class MainNavigationPage extends StatefulWidget {
   final int initialIndex;

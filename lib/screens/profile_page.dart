@@ -281,12 +281,8 @@ class _MenuItemData {
   final bool isDestructive;
   final VoidCallback? onTap;
 
-  const _MenuItemData({
-    required this.icon,
-    required this.label,
-    this.isDestructive = false,
-    this.onTap,
-  });
+  const _MenuItemData({required this.icon, required this.label, this.onTap})
+    : isDestructive = false;
 }
 
 class _MenuSection extends StatelessWidget {

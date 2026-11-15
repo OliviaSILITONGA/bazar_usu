@@ -22,7 +22,7 @@ class _TopBar extends StatelessWidget {
         Image.asset(
           'assets/icon/icon.png',
           height: 32,
-          errorBuilder: (_, __, ___) => const Text(
+          errorBuilder: (_, _, _) => const Text(
             'Bazar USU',
             style: TextStyle(
               fontSize: 18,

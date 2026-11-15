@@ -5,8 +5,6 @@ import '../widgets/auth_widgets.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart'; // Import service firebase auth kamu
 
-import 'package:firebase_auth/firebase_auth.dart';
-
 import 'ktm_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {

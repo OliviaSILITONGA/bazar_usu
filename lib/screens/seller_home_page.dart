@@ -73,7 +73,7 @@ class SellerHomePage extends StatelessWidget {
                 builder: (context, products, _) {
                   return ValueListenableBuilder<List<SellerOrder>>(
                     valueListenable: state.myOrders,
-                    builder: (context, orders, __) {
+                    builder: (context, orders, _) {
                       final orderBaru = orders
                           .where((o) => o.status == OrderStatus.baru)
                           .length;

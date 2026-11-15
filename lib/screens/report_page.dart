@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -23,6 +25,8 @@ class ReportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -112,7 +116,7 @@ class ReportPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 26),
 
-                  // ---------- Riwayat laporan ----------
+                  // ---------- Riwayat laporan (Dari Firestore) ----------
                   Text(
                     'Riwayat Laporan',
                     style: TextStyle(
@@ -122,10 +126,23 @@ class ReportPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ValueListenableBuilder<List<ReportData>>(
-                    valueListenable: ReportState.instance.reports,
-                    builder: (context, reportList, _) {
-                      if (reportList.isEmpty) {
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('reports')
+                        .where('userId', isEqualTo: user?.uid ?? '')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: CircularProgressIndicator(color: kDarkGreen),
+                          ),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 32),
                           child: Center(
@@ -151,14 +168,18 @@ class ReportPage extends StatelessWidget {
                         );
                       }
 
+                      final reportDocs = snapshot.data!.docs;
+
                       return Column(
-                        children: List.generate(reportList.length, (index) {
+                        children: List.generate(reportDocs.length, (index) {
+                          final doc = reportDocs[index];
+                          final data = doc.data() as Map<String, dynamic>;
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _ReportCard(
-                              data: reportList[index],
-                              onDelete: () =>
-                                  ReportState.instance.removeAt(index),
+                            child: _FirestoreReportCard(
+                              docId: doc.id,
+                              data: data,
                             ),
                           );
                         }),
@@ -175,44 +196,27 @@ class ReportPage extends StatelessWidget {
   }
 }
 
-// ==================== KARTU RIWAYAT LAPORAN ====================
-class _ReportCard extends StatelessWidget {
-  final ReportData data;
-  final VoidCallback onDelete;
-  const _ReportCard({required this.data, required this.onDelete});
+// ==================== KARTU RIWAYAT LAPORAN FIRESTORE ====================
+class _FirestoreReportCard extends StatelessWidget {
+  final String docId;
+  final Map<String, dynamic> data;
+  const _FirestoreReportCard({required this.docId, required this.data});
 
   Color get _statusColor {
-    switch (data.status) {
-      case ReportStatus.pending:
-        return const Color(0xFFE09A2E);
-      case ReportStatus.inProgress:
-        return const Color(0xFF3B82F6);
-      case ReportStatus.resolved:
-        return const Color(0xFF34A853);
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}, '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final status = data['status'] ?? 'Menunggu';
+    if (status == 'Diproses') return const Color(0xFF3B82F6);
+    if (status == 'Selesai') return const Color(0xFF34A853);
+    return const Color(0xFFE09A2E);
   }
 
   @override
   Widget build(BuildContext context) {
+    final category = data['category'] ?? 'Masalah Transaksi';
+    final referenceId = data['referenceId'] ?? '';
+    final description = data['description'] ?? '';
+    final status = data['status'] ?? 'Menunggu';
+    final imageUrl = data['imageUrl'];
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -227,7 +231,7 @@ class _ReportCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  data.category.label,
+                  category,
                   style: const TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
@@ -245,7 +249,7 @@ class _ReportCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  data.status.label,
+                  status,
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
@@ -255,19 +259,10 @@ class _ReportCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            _formatDate(data.createdAt),
-            style: TextStyle(
-              fontSize: 11,
-              color: kDarkGreen.withValues(alpha: 0.5),
-            ),
-          ),
-          if (data.referenceId != null &&
-              data.referenceId!.trim().isNotEmpty) ...[
+          if (referenceId.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              'ID Transaksi/Produk: ${data.referenceId}',
+              'ID Transaksi/Produk: $referenceId',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -277,22 +272,24 @@ class _ReportCard extends StatelessWidget {
           ],
           const SizedBox(height: 6),
           Text(
-            data.description,
+            description,
             style: TextStyle(
               fontSize: 12.5,
               color: kDarkGreen.withValues(alpha: 0.75),
               height: 1.4,
             ),
           ),
-          if (data.evidenceImage != null) ...[
+          if (imageUrl != null && imageUrl.toString().isNotEmpty) ...[
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.file(
-                data.evidenceImage!,
+              child: Image.network(
+                imageUrl,
                 height: 110,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Text('Gagal memuat gambar bukti'),
               ),
             ),
           ],
@@ -300,7 +297,12 @@ class _ReportCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: onDelete,
+              onTap: () async {
+                await FirebaseFirestore.instance
+                    .collection('reports')
+                    .doc(docId)
+                    .delete();
+              },
               child: Icon(
                 Icons.delete_outline,
                 size: 18,
@@ -327,6 +329,7 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
   final _referenceController = TextEditingController();
   final _descriptionController = TextEditingController();
   File? _evidenceImage;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -360,7 +363,7 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
     ),
   );
 
-  void _submit() {
+  Future<void> _submit() async {
     final description = _descriptionController.text.trim();
 
     if (description.isEmpty) {
@@ -373,25 +376,42 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
       return;
     }
 
-    ReportState.instance.addReport(
-      ReportData(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        category: _category,
-        referenceId: _referenceController.text.trim().isEmpty
-            ? null
-            : _referenceController.text.trim(),
-        description: description,
-        evidenceImage: _evidenceImage,
-      ),
-    );
+    setState(() => _isLoading = true);
 
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Laporan berhasil dikirim. Terima kasih!'),
-        backgroundColor: kDarkGreen,
-      ),
-    );
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      // Simpan data laporan langsung ke Cloud Firestore
+      await FirebaseFirestore.instance.collection('reports').add({
+        'userId': user?.uid ?? '',
+        'pelapor': user?.email ?? 'Mahasiswa USU',
+        'category': _category.label,
+        'referenceId': _referenceController.text.trim(),
+        'description': description,
+        'status': 'Menunggu',
+        'createdAt': FieldValue.serverTimestamp(),
+        'imageUrl': null, // Jika ada upload storage bisa dimasukkan di sini
+      });
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Laporan berhasil dikirim ke Admin. Terima kasih!'),
+          backgroundColor: kDarkGreen,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengirim laporan: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -417,7 +437,6 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
             Text(
               'Kategori Laporan',
               style: TextStyle(
@@ -446,7 +465,6 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
               },
             ),
             const SizedBox(height: 14),
-
             Text(
               'ID Transaksi / Nama Produk (Opsional)',
               style: TextStyle(
@@ -461,7 +479,6 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
               decoration: _decoration('Contoh: #INV12345 atau nama penjual'),
             ),
             const SizedBox(height: 14),
-
             Text(
               'Deskripsi Masalah',
               style: TextStyle(
@@ -479,7 +496,6 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
               ),
             ),
             const SizedBox(height: 14),
-
             Text(
               'Unggah Bukti / Tangkapan Layar (Opsional)',
               style: TextStyle(
@@ -537,12 +553,11 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
                 ],
               ),
             const SizedBox(height: 20),
-
             SizedBox(
               width: double.infinity,
               height: 46,
               child: ElevatedButton(
-                onPressed: _submit,
+                onPressed: _isLoading ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kDarkGreen,
                   foregroundColor: Colors.white,
@@ -550,10 +565,19 @@ class _ReportFormSheetState extends State<_ReportFormSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text(
-                  'Kirim Laporan',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Kirim Laporan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],

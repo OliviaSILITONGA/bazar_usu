@@ -9,7 +9,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../constants.dart';
 import '../widgets/auth_widgets.dart';
-import 'home_page_user.dart';
 import 'ktm_pending_page.dart';
 
 class KtmVerificationPage extends StatefulWidget {

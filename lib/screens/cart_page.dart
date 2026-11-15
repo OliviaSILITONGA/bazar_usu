@@ -107,7 +107,7 @@ class _CartPageState extends State<CartPage> {
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           itemCount: items.length,
-                          separatorBuilder: (_, __) => Divider(
+                          separatorBuilder: (_, _) => Divider(
                             height: 1,
                             color: kDarkGreen.withValues(alpha: 0.1),
                           ),
@@ -288,7 +288,7 @@ class _CartItemTile extends StatelessWidget {
                         width: 64,
                         height: 64,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.image_outlined,
                           color: kDarkGreen.withValues(alpha: 0.4),
                         ),

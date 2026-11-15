@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -44,7 +45,6 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
     setState(() => _submitting = true);
 
     try {
-      // Ambil UID user yang sedang aktif login saat ini
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (!mounted) return;
@@ -58,7 +58,7 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
         return;
       }
 
-      // Simpan data toko ke Cloud Firestore koleksi 'tenants' dengan status 'pending'
+      // 1. Simpan data toko ke Cloud Firestore koleksi 'tenants'
       await DatabaseService().registerTenant(
         uid: user.uid,
         namaToko: _namaTokoController.text.trim(),
@@ -67,7 +67,23 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
         deskripsi: _alasanController.text.trim(),
       );
 
-      // Simpan juga ke state lokal jika dipakai oleh aplikasi kamu
+      // Pastikan field 'kategori' dan 'nomorHp' tersimpan di dokumen tenant tersebut
+      await FirebaseFirestore.instance.collection('tenants').doc(user.uid).set({
+        'kategori': _kategori,
+        'nomorHp': _nomorHpController.text.trim(),
+      }, SetOptions(merge: true));
+
+      // 2. Otomatis daftarkan / update Jenis Bazar di koleksi 'bazaar_categories'
+      await FirebaseFirestore.instance
+          .collection('bazaar_categories')
+          .doc(_kategori) // Pakai nama kategori sebagai ID agar tidak duplikat
+          .set({
+            'nama': _kategori,
+            'jumlahToko': FieldValue.increment(1),
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      // Simpan juga ke state lokal jika dipakai
       SellerAccountState.instance.submitApplication(
         namaToko: _namaTokoController.text.trim(),
         kategori: _kategori,
@@ -78,7 +94,6 @@ class _SellerRegistrationPageState extends State<SellerRegistrationPage> {
       if (!mounted) return;
       setState(() => _submitting = false);
 
-      // Tampilkan dialog pemberitahuan bahwa pendaftaran sedang ditinjau
       showDialog(
         context: context,
         barrierDismissible: false,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
+
 import '../constants.dart';
 
 enum NotifType { delivery, promo, points }
@@ -45,7 +46,8 @@ class _NotificationPageState extends State<NotificationPage> {
     NotifData(
       type: NotifType.delivery,
       title: 'Pesanan sedang disiapkan',
-      message: 'Ayam Geprek Mozzarella dari Geprek Juara sedang dimasak oleh resto.',
+      message:
+          'Ayam Geprek Mozzarella dari Geprek Juara sedang dimasak oleh resto.',
       time: '3 jam lalu',
       isRead: true,
     ),
@@ -83,13 +85,20 @@ class _NotificationPageState extends State<NotificationPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _NotifHeader(unreadCount: _unreadCount, onMarkAllRead: _markAllRead),
+            _NotifHeader(
+              unreadCount: _unreadCount,
+              onMarkAllRead: _markAllRead,
+            ),
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 itemCount: _notifs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) => _NotifCard(data: _notifs[index]),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) =>
+                    _NotifCard(data: _notifs[index]),
               ),
             ),
           ],
@@ -118,12 +127,19 @@ class _NotifHeader extends StatelessWidget {
               children: [
                 const Text(
                   'Notifikasi',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kDarkGreen),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: kDarkGreen,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '$unreadCount pesan belum dibaca',
-                  style: TextStyle(fontSize: 12.5, color: kDarkGreen.withValues(alpha: 0.6)),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: kDarkGreen.withValues(alpha: 0.6),
+                  ),
                 ),
               ],
             ),
@@ -132,11 +148,19 @@ class _NotifHeader extends StatelessWidget {
             TextButton.icon(
               onPressed: onMarkAllRead,
               icon: const Icon(Icons.check, size: 16, color: kDarkGreen),
-              label: const Text('Tandai dibaca', style: TextStyle(color: kDarkGreen, fontSize: 12.5)),
+              label: const Text(
+                'Tandai dibaca',
+                style: TextStyle(color: kDarkGreen, fontSize: 12.5),
+              ),
               style: TextButton.styleFrom(
                 backgroundColor: kLightGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
             ),
           IconButton(
@@ -194,17 +218,28 @@ class _NotifCard extends StatelessWidget {
               children: [
                 Text(
                   data.title,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: kDarkGreen),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: kDarkGreen,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   data.message,
-                  style: TextStyle(fontSize: 12.5, color: kDarkGreen.withValues(alpha: 0.75), height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: kDarkGreen.withValues(alpha: 0.75),
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   data.time,
-                  style: TextStyle(fontSize: 11, color: kDarkGreen.withValues(alpha: 0.5)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: kDarkGreen.withValues(alpha: 0.5),
+                  ),
                 ),
               ],
             ),
@@ -214,7 +249,10 @@ class _NotifCard extends StatelessWidget {
               width: 8,
               height: 8,
               margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
             ),
         ],
       ),

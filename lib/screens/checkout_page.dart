@@ -23,10 +23,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       icon: Icons.payments_outlined,
       label: 'Bayar di Tempat (COD)',
     ),
-    _PaymentOption(
-      icon: Icons.account_balance_outlined,
-      label: 'Bank Lain',
-    ),
+    _PaymentOption(icon: Icons.account_balance_outlined, label: 'Bank Lain'),
   ];
 
   static const int _ongkir = 0; // gratis ongkir simulasi
@@ -399,7 +396,7 @@ class _CheckoutItemTile extends StatelessWidget {
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.image_outlined,
                           color: kDarkGreen.withValues(alpha: 0.4),
                         ),
@@ -453,10 +450,7 @@ class _OrderSummary extends StatelessWidget {
   final int subtotal;
   final String Function(int) formatPrice;
 
-  const _OrderSummary({
-    required this.subtotal,
-    required this.formatPrice,
-  });
+  const _OrderSummary({required this.subtotal, required this.formatPrice});
 
   @override
   Widget build(BuildContext context) {
