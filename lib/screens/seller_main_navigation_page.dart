@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import 'seller_chat_list_page.dart';
 import 'seller_home_page.dart';
 import 'seller_orders_page.dart';
 import 'seller_products_page.dart';
@@ -17,11 +18,21 @@ class SellerMainNavigationPage extends StatefulWidget {
 class _SellerMainNavigationPageState extends State<SellerMainNavigationPage> {
   int _index = 0;
 
+  // Urutan halaman harus sama dengan urutan ikon di _navItems
   static const _pages = [
     SellerHomePage(),
     SellerProductsPage(),
     SellerOrdersPage(),
+    SellerChatListPage(),
     SellerProfilePage(),
+  ];
+
+  static const _navItems = [
+    _NavData(Icons.storefront_outlined, Icons.storefront),
+    _NavData(Icons.inventory_2_outlined, Icons.inventory_2),
+    _NavData(Icons.receipt_long_outlined, Icons.receipt_long),
+    _NavData(Icons.chat_bubble_outline, Icons.chat_bubble),
+    _NavData(Icons.person_outline, Icons.person),
   ];
 
   @override
@@ -42,36 +53,25 @@ class _SellerMainNavigationPageState extends State<SellerMainNavigationPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _NavItem(
-                icon: Icons.storefront_outlined,
-                selectedIcon: Icons.storefront,
-                selected: _index == 0,
-                onTap: () => setState(() => _index = 0),
-              ),
-              _NavItem(
-                icon: Icons.inventory_2_outlined,
-                selectedIcon: Icons.inventory_2,
-                selected: _index == 1,
-                onTap: () => setState(() => _index = 1),
-              ),
-              _NavItem(
-                icon: Icons.receipt_long_outlined,
-                selectedIcon: Icons.receipt_long,
-                selected: _index == 2,
-                onTap: () => setState(() => _index = 2),
-              ),
-              _NavItem(
-                icon: Icons.person_outline,
-                selectedIcon: Icons.person,
-                selected: _index == 3,
-                onTap: () => setState(() => _index = 3),
-              ),
+              for (int i = 0; i < _navItems.length; i++)
+                _NavItem(
+                  icon: _navItems[i].icon,
+                  selectedIcon: _navItems[i].selectedIcon,
+                  selected: _index == i,
+                  onTap: () => setState(() => _index = i),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _NavData {
+  final IconData icon;
+  final IconData selectedIcon;
+  const _NavData(this.icon, this.selectedIcon);
 }
 
 class _NavItem extends StatelessWidget {
@@ -90,11 +90,16 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Icon(
-        selected ? selectedIcon : icon,
-        color: selected ? kDarkGreen : kDarkGreen.withValues(alpha: 0.45),
-        size: selected ? 26 : 24,
+      child: SizedBox(
+        width: 56,
+        height: 64,
+        child: Icon(
+          selected ? selectedIcon : icon,
+          color: selected ? kDarkGreen : kDarkGreen.withValues(alpha: 0.45),
+          size: selected ? 26 : 24,
+        ),
       ),
     );
   }
