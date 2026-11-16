@@ -1,17 +1,78 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/seller_state.dart';
+import '../services/database_service.dart';
 import 'seller_orders_page.dart';
 import 'seller_products_page.dart';
 
-class SellerHomePage extends StatelessWidget {
+class SellerHomePage extends StatefulWidget {
   const SellerHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final state = SellerAccountState.instance;
+  State<SellerHomePage> createState() => _SellerHomePageState();
+}
 
+class _SellerHomePageState extends State<SellerHomePage> {
+  String? _uid;
+  late final Stream<Map<String, dynamic>?>? _tenantStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _uid = FirebaseAuth.instance.currentUser?.uid;
+    _tenantStream = _uid == null ? null : DatabaseService().tenantStream(_uid!);
+  }
+
+  Uint8List? _decodePhoto(String? base64Str) {
+    if (base64Str == null || base64Str.isEmpty) return null;
+    try {
+      return base64Decode(base64Str);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Menghitung produk milik penjual dari koleksi 'products'
+  Stream<int> _activeProductsCountStream(String uid) {
+    return FirebaseFirestore.instance.collection('products').snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs.where((doc) {
+        final data = doc.data();
+        final ownerId =
+            data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '';
+        return ownerId == uid;
+      }).length;
+    });
+  }
+
+  // Menghitung pesanan berstatus baru/pending milik penjual dari koleksi 'orders'
+  Stream<int> _newOrdersCountStream(String uid) {
+    return FirebaseFirestore.instance.collection('orders').snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs.where((doc) {
+        final data = doc.data();
+        final ownerId =
+            data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '';
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        final isNew =
+            status == 'baru' ||
+            status == 'pending' ||
+            status == 'menunggu' ||
+            status == 'menunggu konfirmasi';
+        return ownerId == uid && isNew;
+      }).length;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -20,99 +81,55 @@ class SellerHomePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ValueListenableBuilder<SellerApplication?>(
-                valueListenable: state.myApplication,
-                builder: (context, app, _) {
-                  return Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: kLightGreen,
-                          border: Border.all(
-                            color: kDarkGreen.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.storefront,
-                          color: kDarkGreen.withValues(alpha: 0.7),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              app?.namaToko ?? 'Toko Kamu',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: kDarkGreen,
-                              ),
-                            ),
-                            Text(
-                              'Dashboard Penjual',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: kDarkGreen.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+              // ---------- Header Profil Toko (Dari Firestore 'tenants') ----------
+              if (_tenantStream == null)
+                _buildHeader('Toko Kamu', null)
+              else
+                StreamBuilder<Map<String, dynamic>?>(
+                  stream: _tenantStream,
+                  builder: (context, snapshot) {
+                    final data = snapshot.data;
+                    final namaToko =
+                        (data?['namaToko'] ?? data?['storeName'] ?? 'Toko Kamu')
+                            .toString()
+                            .trim();
+                    final photoBytes = _decodePhoto(
+                      data?['fotoBase64'] as String?,
+                    );
+
+                    return _buildHeader(
+                      namaToko.isNotEmpty ? namaToko : 'Toko Kamu',
+                      photoBytes,
+                    );
+                  },
+                ),
               const SizedBox(height: 20),
-              ValueListenableBuilder<List<SellerProduct>>(
-                valueListenable: state.myProducts,
-                builder: (context, products, _) {
-                  return ValueListenableBuilder<List<SellerOrder>>(
-                    valueListenable: state.myOrders,
-                    builder: (context, orders, _) {
-                      final orderBaru = orders
-                          .where((o) => o.status == OrderStatus.baru)
-                          .length;
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.inventory_2_outlined,
-                              label: 'Produk Aktif',
-                              value: '${products.length}',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SellerProductsPage(),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.receipt_long_outlined,
-                              label: 'Pesanan Baru',
-                              value: '$orderBaru',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SellerOrdersPage(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
+
+              // ---------- Statistik Produk Aktif & Pesanan Baru ----------
+              if (_uid == null)
+                _buildStatsRow(context, 0, 0)
+              else
+                StreamBuilder<int>(
+                  stream: _activeProductsCountStream(_uid!),
+                  builder: (context, prodSnapshot) {
+                    final productCount = prodSnapshot.data ?? 0;
+
+                    return StreamBuilder<int>(
+                      stream: _newOrdersCountStream(_uid!),
+                      builder: (context, orderSnapshot) {
+                        final newOrderCount = orderSnapshot.data ?? 0;
+                        return _buildStatsRow(
+                          context,
+                          productCount,
+                          newOrderCount,
+                        );
+                      },
+                    );
+                  },
+                ),
               const SizedBox(height: 24),
+
+              // ---------- Akses Cepat ----------
               const Text(
                 'Akses Cepat',
                 style: TextStyle(
@@ -145,6 +162,88 @@ class SellerHomePage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader(String namaToko, Uint8List? photoBytes) {
+    return Row(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: kLightGreen,
+            border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
+            image: photoBytes != null
+                ? DecorationImage(
+                    image: MemoryImage(photoBytes),
+                    fit: BoxFit.cover,
+                  )
+                : null,
+          ),
+          child: photoBytes == null
+              ? Icon(Icons.storefront, color: kDarkGreen.withValues(alpha: 0.7))
+              : null,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                namaToko,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: kDarkGreen,
+                ),
+              ),
+              Text(
+                'Dashboard Penjual',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: kDarkGreen.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsRow(
+    BuildContext context,
+    int productCount,
+    int newOrderCount,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            icon: Icons.inventory_2_outlined,
+            label: 'Produk Aktif',
+            value: '$productCount',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SellerProductsPage()),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.receipt_long_outlined,
+            label: 'Pesanan Baru',
+            value: '$newOrderCount',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SellerOrdersPage()),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
