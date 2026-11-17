@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import 'home_page_user.dart';
-import 'orders_page.dart';
 import 'chat_list_page.dart';
+import 'home_page_user.dart'; // <- sesuaikan dengan nama file HomePageUser kamu
+import 'orders_page.dart';
 import 'profile_page.dart';
 
+/// Halaman induk yang memegang SATU bottom navigation bar untuk 4 tab:
+/// Beranda, Pesanan, Chat, dan Profil.
+///
+/// Pindah tab = ganti index (bukan Navigator.push), jadi tidak ada lagi
+/// halaman yang bertumpuk dan navbar yang dobel.
 class MainNavigationPage extends StatefulWidget {
+  /// Tab yang aktif saat pertama dibuka:
+  /// 0 = Beranda, 1 = Pesanan, 2 = Chat, 3 = Profil.
   final int initialIndex;
+
   const MainNavigationPage({super.key, this.initialIndex = 0});
 
   @override
@@ -15,9 +23,10 @@ class MainNavigationPage extends StatefulWidget {
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
-  late int _currentIndex;
+  late int _currentIndex = widget.initialIndex;
 
-  // Daftar 4 halaman utama
+  // Dibuat sekali. IndexedStack menjaga state tiap tab
+  // (posisi scroll, teks pencarian, dll) saat berpindah tab.
   final List<Widget> _pages = const [
     HomePageUser(),
     OrdersPage(),
@@ -26,76 +35,106 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
+  Widget build(BuildContext context) {
+    return PopScope(
+      // Tombol back di tab lain -> kembali ke Beranda dulu, baru keluar app.
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) setState(() => _currentIndex = 0);
+      },
+      child: Scaffold(
+        backgroundColor: kBg,
+        body: IndexedStack(index: _currentIndex, children: _pages),
+        bottomNavigationBar: _BottomNavBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+        ),
+      ),
+    );
   }
+}
+
+// ==================== BOTTOM NAV BAR (SATU-SATUNYA) ====================
+class _NavItemData {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+
+  const _NavItemData({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+}
+
+class _BottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _BottomNavBar({required this.currentIndex, required this.onTap});
+
+  static const List<_NavItemData> _items = [
+    _NavItemData(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home,
+      label: 'Beranda',
+    ),
+    _NavItemData(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'Pesanan',
+    ),
+    _NavItemData(
+      icon: Icons.chat_bubble_outline,
+      activeIcon: Icons.chat_bubble,
+      label: 'Chat',
+    ),
+    _NavItemData(
+      icon: Icons.person_outline,
+      activeIcon: Icons.person,
+      label: 'Profil',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // IndexedStack menjaga halaman tetap tersimpan di memori tanpa merender ulang
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: SafeArea(
+    return Material(
+      color: Colors.white,
+      child: SafeArea(
         top: false,
         child: Container(
           height: 64,
           decoration: BoxDecoration(
-            color: Colors.white,
             border: Border(
               top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
             ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(
-                index: 0,
-                icon: Icons.home_outlined,
-                activeIcon: Icons.home,
-              ),
-              _buildNavItem(
-                index: 1,
-                icon: Icons.receipt_long_outlined,
-                activeIcon: Icons.receipt_long,
-              ),
-              _buildNavItem(
-                index: 2,
-                icon: Icons.chat_bubble_outline,
-                activeIcon: Icons.chat_bubble,
-              ),
-              _buildNavItem(
-                index: 3,
-                icon: Icons.person_outline,
-                activeIcon: Icons.person,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+            children: List.generate(_items.length, (index) {
+              final item = _items[index];
+              final isActive = index == currentIndex;
 
-  Widget _buildNavItem({
-    required int index,
-    required IconData icon,
-    required IconData activeIcon,
-  }) {
-    final isSelected = _currentIndex == index;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        setState(() {
-          _currentIndex = index; // Pindah tab secara instan tanpa lag
-        });
-      },
-      child: SizedBox(
-        width: 60,
-        height: 64,
-        child: Icon(
-          isSelected ? activeIcon : icon,
-          color: isSelected ? kDarkGreen : kDarkGreen.withValues(alpha: 0.5),
-          size: isSelected ? 26 : 24,
+              return Expanded(
+                child: Semantics(
+                  button: true,
+                  selected: isActive,
+                  label: item.label,
+                  child: InkWell(
+                    onTap: () => onTap(index),
+                    child: Center(
+                      child: Icon(
+                        isActive ? item.activeIcon : item.icon,
+                        size: 26,
+                        color: isActive
+                            ? kDarkGreen
+                            : kDarkGreen.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );

@@ -5,13 +5,11 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/profile_state.dart';
 import '../widgets/profile_avatar.dart';
-import 'chat_list_page.dart';
 import 'edit_profile_page.dart';
 import 'favorite_products_page.dart';
 import 'favorite_stores_page.dart';
 import 'help_page.dart';
 import 'login_screen.dart';
-import 'orders_page.dart';
 import 'profile_view_page.dart';
 import 'report_page.dart';
 import 'saved_addresses_page.dart';
@@ -189,7 +187,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
-      bottomNavigationBar: const _BottomNavBar(),
     );
   }
 }
@@ -464,51 +461,6 @@ class _LogoutButton extends StatelessWidget {
                 fontWeight: FontWeight.bold,
                 color: Colors.redAccent,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==================== BOTTOM NAV BAR ====================
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _NavIcon(
-              icon: Icons.home,
-              size: 26,
-              onTap: () => Navigator.pop(context),
-            ),
-            _NavIcon(
-              icon: Icons.receipt_long_outlined,
-              onTap: () => _open(context, const OrdersPage()),
-            ),
-            _NavIcon(
-              icon: Icons.chat_bubble_outline,
-              onTap: () => _open(context, ChatListPage()),
-            ),
-            _NavIcon(
-              icon: Icons.person,
-              size: 26,
-              isActive: true,
-              onTap: () => _open(context, const ProfilePage()),
             ),
           ],
         ),
