@@ -10,6 +10,8 @@ import '../services/database_service.dart';
 import 'seller_orders_page.dart';
 import 'seller_products_page.dart';
 
+typedef TenantMap = Map<String, dynamic>;
+
 class SellerHomePage extends StatefulWidget {
   const SellerHomePage({super.key});
 
@@ -19,13 +21,15 @@ class SellerHomePage extends StatefulWidget {
 
 class _SellerHomePageState extends State<SellerHomePage> {
   String? _uid;
-  late final Stream<Map<String, dynamic>?>? _tenantStream;
+  Stream<TenantMap?>? _tenantStream;
 
   @override
   void initState() {
     super.initState();
     _uid = FirebaseAuth.instance.currentUser?.uid;
-    _tenantStream = _uid == null ? null : DatabaseService().tenantStream(_uid!);
+    if (_uid != null) {
+      _tenantStream = DatabaseService().tenantStream(_uid!);
+    }
   }
 
   Uint8List? _decodePhoto(String? base64Str) {
@@ -85,7 +89,7 @@ class _SellerHomePageState extends State<SellerHomePage> {
               if (_tenantStream == null)
                 _buildHeader('Toko Kamu', null)
               else
-                StreamBuilder<Map<String, dynamic>?>(
+                StreamBuilder<TenantMap?>(
                   stream: _tenantStream,
                   builder: (context, snapshot) {
                     final data = snapshot.data;
@@ -105,9 +109,9 @@ class _SellerHomePageState extends State<SellerHomePage> {
                 ),
               const SizedBox(height: 20),
 
-              // ---------- Statistik Produk Aktif & Pesanan Baru ----------
+              // ---------- Statistik Produk Aktif & Pesanan Baru (Hanya Tampilan) ----------
               if (_uid == null)
-                _buildStatsRow(context, 0, 0)
+                _buildStatsRow(0, 0)
               else
                 StreamBuilder<int>(
                   stream: _activeProductsCountStream(_uid!),
@@ -118,18 +122,14 @@ class _SellerHomePageState extends State<SellerHomePage> {
                       stream: _newOrdersCountStream(_uid!),
                       builder: (context, orderSnapshot) {
                         final newOrderCount = orderSnapshot.data ?? 0;
-                        return _buildStatsRow(
-                          context,
-                          productCount,
-                          newOrderCount,
-                        );
+                        return _buildStatsRow(productCount, newOrderCount);
                       },
                     );
                   },
                 ),
               const SizedBox(height: 24),
 
-              // ---------- Akses Cepat ----------
+              // ---------- Akses Cepat (Bisa Ditekan) ----------
               const Text(
                 'Akses Cepat',
                 style: TextStyle(
@@ -213,11 +213,7 @@ class _SellerHomePageState extends State<SellerHomePage> {
     );
   }
 
-  Widget _buildStatsRow(
-    BuildContext context,
-    int productCount,
-    int newOrderCount,
-  ) {
+  Widget _buildStatsRow(int productCount, int newOrderCount) {
     return Row(
       children: [
         Expanded(
@@ -225,10 +221,6 @@ class _SellerHomePageState extends State<SellerHomePage> {
             icon: Icons.inventory_2_outlined,
             label: 'Produk Aktif',
             value: '$productCount',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SellerProductsPage()),
-            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -237,10 +229,6 @@ class _SellerHomePageState extends State<SellerHomePage> {
             icon: Icons.receipt_long_outlined,
             label: 'Pesanan Baru',
             value: '$newOrderCount',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SellerOrdersPage()),
-            ),
           ),
         ),
       ],
@@ -252,49 +240,44 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback onTap;
 
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
-    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: kDarkGreen, size: 22),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: kDarkGreen,
-              ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: kDarkGreen, size: 22),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: kDarkGreen,
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: kDarkGreen.withValues(alpha: 0.65),
-              ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: kDarkGreen.withValues(alpha: 0.65),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
