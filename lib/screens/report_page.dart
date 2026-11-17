@@ -2,14 +2,39 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../constants.dart';
 import '../services/report_state.dart';
 
-class ReportPage extends StatelessWidget {
+class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
+
+  @override
+  State<ReportPage> createState() => _ReportPageState();
+}
+
+class _ReportPageState extends State<ReportPage> {
+  // Stream dibuat SEKALI di initState (bukan di dalam build),
+  // supaya tidak re-subscribe setiap widget rebuild.
+  late final Stream<QuerySnapshot> _reportsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+
+    // PERBAIKAN: orderBy('createdAt') dihapus dari query.
+    // Kombinasi where('userId') + orderBy('createdAt') butuh composite index,
+    // kalau index belum ada query ditolak server -> daftar sempat muncul dari
+    // cache lalu hilang. Pengurutan sekarang dilakukan di sisi aplikasi.
+    _reportsStream = FirebaseFirestore.instance
+        .collection('reports')
+        .where('userId', isEqualTo: user?.uid ?? '')
+        .snapshots();
+  }
 
   void _openReportForm(BuildContext context) {
     showModalBottomSheet(
@@ -23,10 +48,28 @@ class ReportPage extends StatelessWidget {
     );
   }
 
+  /// Urutkan laporan dari yang terbaru. Laporan yang baru saja dikirim
+  /// (createdAt masih null karena menunggu serverTimestamp) ditaruh paling atas.
+  List<QueryDocumentSnapshot> _sortNewestFirst(
+    List<QueryDocumentSnapshot> docs,
+  ) {
+    final sorted = List<QueryDocumentSnapshot>.of(docs);
+    sorted.sort((a, b) {
+      final aRaw = (a.data() as Map<String, dynamic>)['createdAt'];
+      final bRaw = (b.data() as Map<String, dynamic>)['createdAt'];
+      final aTime = aRaw is Timestamp ? aRaw : null;
+      final bTime = bRaw is Timestamp ? bRaw : null;
+
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return -1;
+      if (bTime == null) return 1;
+      return bTime.compareTo(aTime);
+    });
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -127,13 +170,52 @@ class ReportPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('reports')
-                        .where('userId', isEqualTo: user?.uid ?? '')
-                        .orderBy('createdAt', descending: true)
-                        .snapshots(),
+                    stream: _reportsStream,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                      // PERBAIKAN: error ditangani, tidak lagi dianggap "kosong"
+                      if (snapshot.hasError) {
+                        debugPrint(
+                          'Firestore reports error: ${snapshot.error}',
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  size: 44,
+                                  color: Colors.redAccent,
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Gagal memuat riwayat laporan',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                                // Detail error hanya tampil saat debug
+                                if (kDebugMode) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${snapshot.error}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: kDarkGreen.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20),
@@ -168,7 +250,7 @@ class ReportPage extends StatelessWidget {
                         );
                       }
 
-                      final reportDocs = snapshot.data!.docs;
+                      final reportDocs = _sortNewestFirst(snapshot.data!.docs);
 
                       return Column(
                         children: List.generate(reportDocs.length, (index) {
@@ -300,10 +382,20 @@ class _FirestoreReportCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: GestureDetector(
               onTap: () async {
-                await FirebaseFirestore.instance
-                    .collection('reports')
-                    .doc(docId)
-                    .delete();
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('reports')
+                      .doc(docId)
+                      .delete();
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal menghapus laporan: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
               },
               child: Icon(
                 Icons.delete_outline,

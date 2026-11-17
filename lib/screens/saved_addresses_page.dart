@@ -53,9 +53,18 @@ class SavedAddressesPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ValueListenableBuilder<List<AddressData>>(
-                valueListenable: AddressState.instance.addresses,
-                builder: (context, addresses, _) {
+              child: StreamBuilder<List<AddressData>>(
+                stream: AddressState.instance.addressesStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final addresses = snapshot.data ?? [];
+
                   if (addresses.isEmpty) {
                     return Center(
                       child: Padding(
@@ -89,82 +98,97 @@ class SavedAddressesPage extends StatelessWidget {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final addr = addresses[index];
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: kDarkGreen.withValues(alpha: 0.12),
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          if (!addr.isPrimary && addr.id != null) {
+                            AddressState.instance.setPrimaryAddress(addr.id!);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: addr.isPrimary
+                                  ? kDarkGreen
+                                  : kDarkGreen.withValues(alpha: 0.12),
+                              width: addr.isPrimary ? 1.5 : 1,
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  addr.label,
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: kDarkGreen,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    addr.label,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: kDarkGreen,
+                                    ),
                                   ),
-                                ),
-                                if (addr.isPrimary) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
+                                  if (addr.isPrimary) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: kLightGreen,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Text(
+                                        'Utama',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          color: kDarkGreen,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: kLightGreen,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Text(
-                                      'Utama',
-                                      style: TextStyle(
-                                        fontSize: 10.5,
-                                        color: kDarkGreen,
-                                        fontWeight: FontWeight.bold,
+                                  ],
+                                  const Spacer(),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      if (addr.id != null) {
+                                        await AddressState.instance
+                                            .deleteAddress(addr.id!);
+                                      }
+                                    },
+                                    child: Icon(
+                                      Icons.delete_outline,
+                                      size: 19,
+                                      color: Colors.redAccent.withValues(
+                                        alpha: 0.8,
                                       ),
                                     ),
                                   ),
                                 ],
-                                const Spacer(),
-                                GestureDetector(
-                                  onTap: () =>
-                                      AddressState.instance.removeAt(index),
-                                  child: Icon(
-                                    Icons.delete_outline,
-                                    size: 19,
-                                    color: Colors.redAccent.withValues(
-                                      alpha: 0.8,
-                                    ),
-                                  ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${addr.recipientName} (${addr.phone})',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${addr.recipientName} (${addr.phone})',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              addr.fullAddress,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: kDarkGreen.withValues(alpha: 0.75),
-                                height: 1.4,
+                              const SizedBox(height: 4),
+                              Text(
+                                addr.fullAddress,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: kDarkGreen.withValues(alpha: 0.75),
+                                  height: 1.4,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -203,6 +227,7 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
   final _addressController = TextEditingController();
   bool _isPrimary = false;
   bool _isFetchingLocation = false;
+  bool _isSaving = false;
 
   Future<void> _useCurrentLocation() async {
     setState(() => _isFetchingLocation = true);
@@ -251,7 +276,9 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_isSaving) return;
+
     if (_labelController.text.trim().isEmpty ||
         _nameController.text.trim().isEmpty ||
         _phoneController.text.trim().isEmpty ||
@@ -265,16 +292,38 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
       return;
     }
 
-    AddressState.instance.addAddress(
-      AddressData(
-        label: _labelController.text.trim(),
-        recipientName: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        fullAddress: _addressController.text.trim(),
-        isPrimary: _isPrimary,
-      ),
-    );
-    Navigator.pop(context);
+    setState(() => _isSaving = true);
+
+    try {
+      await AddressState.instance.addAddress(
+        AddressData(
+          label: _labelController.text.trim(),
+          recipientName: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          fullAddress: _addressController.text.trim(),
+          isPrimary: _isPrimary,
+        ),
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Alamat berhasil disimpan'),
+          backgroundColor: kDarkGreen,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan alamat: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -393,7 +442,7 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
               width: double.infinity,
               height: 46,
               child: ElevatedButton(
-                onPressed: _save,
+                onPressed: _isSaving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kDarkGreen,
                   foregroundColor: Colors.white,
@@ -401,10 +450,19 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text(
-                  'Simpan',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Simpan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],

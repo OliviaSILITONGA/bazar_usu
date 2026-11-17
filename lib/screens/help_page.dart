@@ -215,10 +215,6 @@ class HelpPage extends StatelessWidget {
                             height: 1.5,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        _SubHeading('Formulir Laporan Kendala'),
-                        const SizedBox(height: 8),
-                        const _ComplaintFormCard(),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -255,7 +251,7 @@ class HelpPage extends StatelessWidget {
                           'Pengembalian dana (refund) untuk pembayaran non-tunai diproses sesuai kebijakan metode pembayaran terkait.',
                         ),
                         _BulletItem(
-                          'Produk yang tidak sesuai pesanan bisa dilaporkan lewat Formulir Laporan Kendala di atas.',
+                          'Produk yang tidak sesuai pesanan bisa dilaporkan lewat Kontak Admin di atas.',
                         ),
                         SizedBox(height: 14),
                         _SubHeading('Panduan Komunitas / Etika'),
@@ -661,105 +657,6 @@ class _AdminWhatsAppButton extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ==================== FORMULIR LAPORAN KENDALA ====================
-class _ComplaintFormCard extends StatefulWidget {
-  const _ComplaintFormCard();
-
-  @override
-  State<_ComplaintFormCard> createState() => _ComplaintFormCardState();
-}
-
-class _ComplaintFormCardState extends State<_ComplaintFormCard> {
-  final _subjectController = TextEditingController();
-  final _descriptionController = TextEditingController();
-
-  @override
-  void dispose() {
-    _subjectController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  InputDecoration _decoration(String hint) => InputDecoration(
-    isDense: true,
-    hintText: hint,
-    hintStyle: const TextStyle(fontSize: 12.5),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.3)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: kDarkGreen, width: 2),
-    ),
-  );
-
-  void _submit() {
-    final subject = _subjectController.text.trim();
-    final description = _descriptionController.text.trim();
-
-    if (subject.isEmpty || description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subjek dan deskripsi kendala wajib diisi!'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
-    final message =
-        'Halo Admin, saya ingin melaporkan kendala:\n\n'
-        'Subjek: $subject\n'
-        'Deskripsi: $description';
-
-    _launchWhatsApp(
-      context,
-      phoneNumber: kAdmins.first.phoneNumber,
-      message: message,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _subjectController,
-          decoration: _decoration('Subjek (misal: Pesanan tidak sesuai)'),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _descriptionController,
-          maxLines: 3,
-          decoration: _decoration('Jelaskan kendala yang kamu alami...'),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _submit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kDarkGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.send, size: 16),
-            label: const Text('Kirim Laporan via WhatsApp'),
-          ),
-        ),
-      ],
     );
   }
 }
