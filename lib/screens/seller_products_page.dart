@@ -1,5 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
@@ -16,22 +20,45 @@ class SellerProductsPage extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, SellerProduct product) {
+  void _confirmDelete(BuildContext context, String docId, String productName) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Hapus Produk'),
-        content: Text('Yakin ingin menghapus "${product.name}"?'),
+        content: Text('Yakin ingin menghapus "$productName"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () {
-              SellerAccountState.instance.deleteProduct(product.id);
+            onPressed: () async {
               Navigator.pop(dialogContext);
+              try {
+                await FirebaseFirestore.instance
+                    .collection('products')
+                    .doc(docId)
+                    .delete();
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Produk berhasil dihapus'),
+                      backgroundColor: kDarkGreen,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal menghapus produk: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
@@ -47,8 +74,28 @@ class SellerProductsPage extends StatelessWidget {
     );
   }
 
+  // Konversi dokumen Firestore menjadi objek SellerProduct agar form Edit tetap kompatibel
+  SellerProduct _mapDocToSellerProduct(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final rawPrice = data['price'] ?? data['harga'] ?? 0;
+    final price = rawPrice is int
+        ? rawPrice
+        : int.tryParse(rawPrice.toString()) ?? 0;
+
+    return SellerProduct(
+      id: doc.id,
+      name: (data['name'] ?? data['nama'] ?? 'Produk').toString(),
+      price: price,
+      imagePath:
+          (data['imageBase64'] ?? data['imageUrl'] ?? data['imagePath'] ?? '')
+              .toString(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -66,10 +113,26 @@ class SellerProductsPage extends StatelessWidget {
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: SafeArea(
-        child: ValueListenableBuilder<List<SellerProduct>>(
-          valueListenable: SellerAccountState.instance.myProducts,
-          builder: (context, products, _) {
-            if (products.isEmpty) {
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('products').snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(color: kDarkGreen),
+              );
+            }
+
+            // Filter produk milik penjual yang sedang login
+            final allDocs = snapshot.data?.docs ?? [];
+            final myDocs = allDocs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              final ownerId =
+                  data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '';
+              return ownerId == uid;
+            }).toList();
+
+            if (myDocs.isEmpty) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -85,11 +148,21 @@ class SellerProductsPage extends StatelessWidget {
                 ),
               );
             }
+
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-              itemCount: products.length,
+              itemCount: myDocs.length,
               itemBuilder: (context, index) {
-                final product = products[index];
+                final doc = myDocs[index];
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                final product = _mapDocToSellerProduct(doc);
+                final imageSource =
+                    (data['imageBase64'] ??
+                            data['imageUrl'] ??
+                            data['imagePath'] ??
+                            '')
+                        .toString();
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
@@ -102,7 +175,7 @@ class SellerProductsPage extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      _ProductThumb(imagePath: product.imagePath),
+                      _ProductThumb(imageSource: imageSource),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -138,7 +211,8 @@ class SellerProductsPage extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: () => _confirmDelete(context, product),
+                        onPressed: () =>
+                            _confirmDelete(context, doc.id, product.name),
                         icon: const Icon(
                           Icons.delete_outline,
                           size: 19,
@@ -159,12 +233,11 @@ class SellerProductsPage extends StatelessWidget {
 
 // ==================== THUMBNAIL FOTO PRODUK ====================
 class _ProductThumb extends StatelessWidget {
-  final String? imagePath;
-  const _ProductThumb({required this.imagePath});
+  final String imageSource;
+  const _ProductThumb({required this.imageSource});
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imagePath != null && imagePath!.isNotEmpty;
     return Container(
       width: 52,
       height: 52,
@@ -173,21 +246,69 @@ class _ProductThumb extends StatelessWidget {
         color: kLightGreen,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: hasImage
-          ? Image.file(
-              File(imagePath!),
-              width: 52,
-              height: 52,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Icon(
-                Icons.image_outlined,
-                color: kDarkGreen.withValues(alpha: 0.4),
-              ),
-            )
-          : Icon(
-              Icons.image_outlined,
-              color: kDarkGreen.withValues(alpha: 0.4),
-            ),
+      child: _buildImage(),
     );
+  }
+
+  Widget _buildImage() {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+      );
+    }
+
+    // 1. Jika berupa URL internet (Firebase Storage / HTTP)
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    }
+
+    // 2. Jika berupa path file lokal (Android/iOS non-Web)
+    if (!kIsWeb &&
+        (imageSource.startsWith('/') || imageSource.contains(':\\'))) {
+      return Image.file(
+        File(imageSource),
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    }
+
+    // 3. Jika berupa string Base64
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      final bytes = base64Decode(cleanBase64);
+      return Image.memory(
+        bytes,
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+      );
+    }
   }
 }
