@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
@@ -46,9 +48,18 @@ class FavoriteProductsPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ValueListenableBuilder<List<FavoriteProductData>>(
-                valueListenable: FavoriteProductsState.instance.products,
-                builder: (context, products, _) {
+              child: StreamBuilder<List<FavoriteProductData>>(
+                stream: FavoriteProductsState.instance.favoriteProductsStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final products = snapshot.data ?? [];
+
                   if (products.isEmpty) {
                     return Center(
                       child: Padding(
@@ -106,18 +117,7 @@ class FavoriteProductsPage extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: kLightGreen,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.image_outlined,
-                                color: kDarkGreen.withValues(alpha: 0.4),
-                              ),
-                            ),
+                            _ProductImageThumb(imageSource: product.image),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -172,5 +172,72 @@ class FavoriteProductsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ProductImageThumb extends StatelessWidget {
+  final String imageSource;
+  const _ProductImageThumb({required this.imageSource});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: kLightGreen,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: _buildImage(),
+    );
+  }
+
+  Widget _buildImage() {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+      );
+    }
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    }
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    }
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+      );
+    }
   }
 }

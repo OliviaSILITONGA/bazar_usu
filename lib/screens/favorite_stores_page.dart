@@ -17,16 +17,21 @@ class FavoriteStoresPage extends StatelessWidget {
           children: [
             const _TopBar(title: 'Toko Favorit'),
             Expanded(
-              child: ValueListenableBuilder<Set<String>>(
-                valueListenable: FavoriteStoresState.instance.favorites,
-                builder: (context, favoriteNames, _) {
-                  if (favoriteNames.isEmpty) {
-                    return const _EmptyFavorites();
+              child: StreamBuilder<List<StoreProfileData>>(
+                stream: FavoriteStoresState.instance.favoriteStoresStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
                   }
 
-                  final stores = favoriteNames
-                      .map(resolveStoreProfile)
-                      .toList();
+                  final stores = snapshot.data ?? [];
+
+                  if (stores.isEmpty) {
+                    return const _EmptyFavorites();
+                  }
 
                   return ListView.separated(
                     padding: const EdgeInsets.symmetric(
@@ -165,7 +170,15 @@ class _FavoriteStoreTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.favorite, color: Colors.redAccent, size: 20),
+            IconButton(
+              onPressed: () =>
+                  FavoriteStoresState.instance.remove(profile.name),
+              icon: const Icon(
+                Icons.favorite,
+                color: Colors.redAccent,
+                size: 20,
+              ),
+            ),
           ],
         ),
       ),
