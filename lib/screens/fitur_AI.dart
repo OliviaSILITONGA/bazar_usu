@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'main_navigation_page.dart';
+
 import '../constants.dart';
 
 class FiturAI extends StatefulWidget {

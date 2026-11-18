@@ -6,6 +6,7 @@ import 'notification_page.dart';
 import 'cart_page.dart';
 import 'product_detail_page.dart';
 import 'store_detail_page.dart';
+import 'main_navigation_page.dart';
 import '../widgets/search_bar_field.dart';
 
 class HomePageUser extends StatefulWidget {

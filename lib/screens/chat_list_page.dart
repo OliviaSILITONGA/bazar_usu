@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'chat_detail_page.dart';
+import 'main_navigation_page.dart';
 
 import '../constants.dart';
 

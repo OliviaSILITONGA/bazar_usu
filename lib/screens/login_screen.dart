@@ -7,7 +7,7 @@ import '../services/auth_service.dart';
 import '../widgets/auth_widgets.dart';
 import 'admin_dashboard_page.dart';
 import 'forgot_password_page.dart';
-import 'home_page_user.dart';
+import 'main_navigation_page.dart';
 import 'ktm_pending_page.dart'; // Tambahkan import halaman pending
 import 'register_screen.dart';
 
@@ -124,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
           if (ktmStatus == 'approved') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const HomePageUser()),
+              MaterialPageRoute(builder: (_) => const MainNavigationPage()),
             );
           } else {
             // Jika masih pending atau ditolak, arahkan ke halaman tunggu/pending
