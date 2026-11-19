@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/order_state.dart';
 import '../widgets/search_bar_field.dart';
+import 'product_reviews_page.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({super.key});
@@ -21,6 +22,7 @@ class _OrdersPageState extends State<OrdersPage> {
     'Perlu dibayar',
     'Akan Diterima',
     'Untuk Diulas',
+    'Pengembalian',
     'Pesanan Selesai',
   ];
 
@@ -102,7 +104,6 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 }
 
-// ==================== KOLOM PENCARIAN ====================
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   const _SearchField({required this.controller});
@@ -116,7 +117,6 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-// ==================== TAB STATUS PESANAN ====================
 class _TabRow extends StatelessWidget {
   final List<String> tabs;
   final int selectedIndex;
@@ -170,7 +170,6 @@ class _TabRow extends StatelessWidget {
   }
 }
 
-// ==================== KARTU PESANAN ====================
 class _OrderCard extends StatelessWidget {
   final OrderData order;
   const _OrderCard({required this.order});
@@ -178,7 +177,7 @@ class _OrderCard extends StatelessWidget {
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]}.',
+      (match) => (match.group(1) ?? '') + '.',
     );
   }
 
@@ -189,7 +188,7 @@ class _OrderCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Status pesanan diperbarui menjadi "$nextStatus"'),
+            content: Text('Status pesanan diperbarui menjadi ' + nextStatus),
             backgroundColor: kDarkGreen,
           ),
         );
@@ -198,12 +197,166 @@ class _OrderCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memperbarui status: $e'),
+            content: Text('Gagal memperbarui status: ' + e.toString()),
             backgroundColor: Colors.redAccent,
           ),
         );
       }
     }
+  }
+
+  Future<void> _openReturnDialog(BuildContext context) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Ajukan Pengembalian',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: kDarkGreen,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tuliskan alasan pengembalian untuk pesanan ini:',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: kDarkGreen.withValues(alpha: 0.75),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Contoh: Barang tidak sesuai / rusak...',
+                isDense: true,
+                contentPadding: const EdgeInsets.all(10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: kDarkGreen.withValues(alpha: 0.25),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: kDarkGreen, width: 1.6),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              'Batal',
+              style: TextStyle(color: kDarkGreen.withValues(alpha: 0.65)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kDarkGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            child: const Text('Ajukan'),
+          ),
+        ],
+      ),
+    );
+
+    reasonController.dispose();
+
+    if (confirmed == true && context.mounted) {
+      await _advanceStatus(context, 'Pengembalian');
+    }
+  }
+
+  Future<void> _openReviewForItem(BuildContext context, OrderItem item) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductReviewsPage(
+          productName: item.description,
+          storeName: item.storeName,
+          allowWrite: true,
+        ),
+      ),
+    );
+  }
+
+  void _handleReviewAction(BuildContext context) {
+    if (order.items.isEmpty) return;
+
+    if (order.items.length == 1) {
+      _openReviewForItem(context, order.items.first);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Produk untuk Diulas',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: kDarkGreen,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...order.items.map(
+                (item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: _OrderItemThumb(imageSource: item.image),
+                  title: Text(
+                    item.description,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen,
+                    ),
+                  ),
+                  subtitle: Text(
+                    item.storeName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: kDarkGreen.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: kDarkGreen),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _openReviewForItem(context, item);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -232,7 +385,11 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                order.createdAt.day.toString() +
+                    '/' +
+                    order.createdAt.month.toString() +
+                    '/' +
+                    order.createdAt.year.toString(),
                 style: TextStyle(
                   fontSize: 11,
                   color: kDarkGreen.withValues(alpha: 0.5),
@@ -245,6 +402,7 @@ class _OrderCard extends StatelessWidget {
             (OrderItem item) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _OrderItemThumb(imageSource: item.image),
                   const SizedBox(width: 10),
@@ -254,13 +412,18 @@ class _OrderCard extends StatelessWidget {
                       children: [
                         Text(
                           item.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12.5,
                             color: kDarkGreen.withValues(alpha: 0.85),
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          '${item.storeName} · x${item.quantity}',
+                          item.storeName + ' · x' + item.quantity.toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
                             color: kDarkGreen.withValues(alpha: 0.55),
@@ -269,8 +432,9 @@ class _OrderCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
-                    'Rp${_formatPrice(item.price * item.quantity)}',
+                    'Rp' + _formatPrice(item.price * item.quantity),
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
@@ -294,7 +458,7 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Rp${_formatPrice(order.total)}',
+                'Rp' + _formatPrice(order.total),
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -305,45 +469,145 @@ class _OrderCard extends StatelessWidget {
           ),
           if (statusLower == 'perlu dibayar' ||
               statusLower == 'akan diterima' ||
-              statusLower == 'untuk diulas') ...[
+              statusLower == 'untuk diulas' ||
+              statusLower == 'pengembalian') ...[
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (statusLower == 'perlu dibayar') {
-                    _advanceStatus(context, 'Akan Diterima');
-                  } else if (statusLower == 'akan diterima') {
-                    _advanceStatus(context, 'Untuk Diulas');
-                  } else if (statusLower == 'untuk diulas') {
-                    _advanceStatus(context, 'Pesanan Selesai');
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kDarkGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: Text(
-                  statusLower == 'perlu dibayar'
-                      ? 'Bayar Sekarang'
-                      : statusLower == 'akan diterima'
-                      ? 'Pesanan Diterima'
-                      : 'Selesaikan Pesanan',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              child: statusLower == 'untuk diulas'
+                  ? Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => _openReturnDialog(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            side: const BorderSide(color: Colors.redAccent),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text(
+                            'Kembalikan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _handleReviewAction(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kDarkGreen,
+                            side: const BorderSide(color: kDarkGreen),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text(
+                            'Beri Ulasan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () =>
+                              _advanceStatus(context, 'Pesanan Selesai'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kDarkGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text(
+                            'Selesaikan Pesanan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : statusLower == 'pengembalian'
+                  ? ElevatedButton(
+                      onPressed: () =>
+                          _advanceStatus(context, 'Pesanan Selesai'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDarkGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const Text(
+                        'Selesaikan Pengembalian',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : ElevatedButton(
+                      onPressed: () {
+                        if (statusLower == 'perlu dibayar') {
+                          _advanceStatus(context, 'Akan Diterima');
+                        } else if (statusLower == 'akan diterima') {
+                          _advanceStatus(context, 'Untuk Diulas');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDarkGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: Text(
+                        statusLower == 'perlu dibayar'
+                            ? 'Bayar Sekarang'
+                            : 'Pesanan Diterima',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
             ),
           ],
         ],
@@ -352,7 +616,6 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-// ==================== THUMBNAIL ITEM PESANAN ====================
 class _OrderItemThumb extends StatelessWidget {
   final String imageSource;
   const _OrderItemThumb({required this.imageSource});
@@ -425,7 +688,6 @@ class _OrderItemThumb extends StatelessWidget {
   }
 }
 
-// ==================== STATE KOSONG ====================
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 

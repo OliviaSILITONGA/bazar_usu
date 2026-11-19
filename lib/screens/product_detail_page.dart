@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
@@ -7,12 +8,15 @@ import '../services/cart_state.dart';
 import '../services/favorite_products_state.dart';
 import 'chat_detail_page.dart';
 import 'checkout_page.dart';
+import 'product_reviews_page.dart';
 
 class ReviewData {
   final int stars;
   final String comment;
   const ReviewData({required this.stars, required this.comment});
 }
+
+typedef ProductReviewList = List<ReviewData>;
 
 class ProductDetailPage extends StatefulWidget {
   final String name;
@@ -36,13 +40,10 @@ class ProductDetailPage extends StatefulWidget {
     required this.rating,
     required this.reviewCount,
     required this.prepTime,
-    required this.kcal,
+    this.kcal = 0,
     required this.description,
     this.image = '',
-    this.reviews = const [
-      ReviewData(stars: 5, comment: 'Produknya enak, sesuai deskripsi!'),
-      ReviewData(stars: 4, comment: 'Pengiriman cepat, kualitas oke.'),
-    ],
+    this.reviews = const [],
   });
 
   @override
@@ -51,6 +52,55 @@ class ProductDetailPage extends StatefulWidget {
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _quantity = 1;
+
+  Stream<ProductReviewList> _productReviewsStream() {
+    final targetProduct = widget.name.trim().toLowerCase();
+    final targetStore = widget.storeName.trim().toLowerCase();
+
+    return FirebaseFirestore.instance.collection('reviews').snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final pName = (data['productName'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final sName = (data['storeName'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            return pName == targetProduct &&
+                (targetStore.isEmpty || sName == targetStore);
+          })
+          .map((doc) {
+            final data = doc.data();
+            final rawStars = data['stars'] ?? data['rating'] ?? 5;
+            final stars = rawStars is int
+                ? rawStars
+                : int.tryParse(rawStars.toString()) ?? 5;
+            return ReviewData(
+              stars: stars.clamp(1, 5),
+              comment: (data['comment'] ?? '').toString(),
+            );
+          })
+          .toList();
+    });
+  }
+
+  void _openAllBuyerReviewsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductReviewsPage(
+          productName: widget.name,
+          storeName: widget.storeName,
+          allowWrite: false,
+        ),
+      ),
+    );
+  }
 
   void _toggleFavorite(bool isCurrentlyFavorited) {
     final product = FavoriteProductData(
@@ -88,7 +138,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Berhasil!'),
-        content: Text('${widget.name} (x$_quantity) ditambahkan ke keranjang.'),
+        content: Text(
+          widget.name +
+              ' (x' +
+              _quantity.toString() +
+              ') ditambahkan ke keranjang.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -121,7 +176,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]}.',
+      (match) => (match.group(1) ?? '') + '.',
     );
   }
 
@@ -139,112 +194,162 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _RatingRow(
-                    rating: widget.rating,
-                    reviewCount: widget.reviewCount,
-                    prepTime: widget.prepTime,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
+              child: StreamBuilder<ProductReviewList>(
+                stream: _productReviewsStream(),
+                builder: (context, snapshot) {
+                  final reviews = snapshot.data ?? const <ReviewData>[];
+                  final displayReviewCount = reviews.length;
+                  final displayRating = reviews.isNotEmpty
+                      ? reviews.fold<int>(0, (acc, r) => acc + r.stars) /
+                            reviews.length
+                      : widget.rating;
+
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.name,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.storeName,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: kDarkGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _RatingRow(
+                        rating: displayRating,
+                        reviewCount: displayReviewCount,
+                        prepTime: widget.prepTime,
                       ),
-                      const SizedBox(width: 12),
-                      ValueListenableBuilder<FavProductList>(
-                        valueListenable:
-                            FavoriteProductsState.instance.products,
-                        builder: (context, favProducts, _) {
-                          final isFavorited = favProducts.any(
-                            (p) =>
-                                p.storeName == widget.storeName &&
-                                p.description == widget.name,
-                          );
-                          return GestureDetector(
-                            onTap: () => _toggleFavorite(isFavorited),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.redAccent.withValues(
-                                    alpha: 0.5,
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.name,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
                                   ),
                                 ),
-                              ),
-                              child: Icon(
-                                isFavorited
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: Colors.redAccent,
-                                size: 22,
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.storeName,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: kDarkGreen,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ValueListenableBuilder<FavProductList>(
+                            valueListenable:
+                                FavoriteProductsState.instance.products,
+                            builder: (context, favProducts, _) {
+                              final isFavorited = favProducts.any(
+                                (p) =>
+                                    p.storeName == widget.storeName &&
+                                    p.description == widget.name,
+                              );
+                              return GestureDetector(
+                                onTap: () => _toggleFavorite(isFavorited),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.redAccent.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    isFavorited
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: Colors.redAccent,
+                                    size: 22,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _PriceRow(
+                        originalPrice: widget.originalPrice,
+                        discountPrice: widget.discountPrice,
+                        formatPrice: _formatPrice,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        widget.description,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _ChatButton(onTap: _openChatWithSeller),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Ulasan Produk',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _openAllBuyerReviewsPage,
+                            child: const Text(
+                              'Lihat Semua',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: kDarkGreen,
+                                decoration: TextDecoration.underline,
                               ),
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 10),
+                      if (reviews.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F0F0),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Text(
+                            'Belum ada ulasan untuk produk ini.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        )
+                      else
+                        ...reviews
+                            .take(3)
+                            .map(
+                              (r) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GestureDetector(
+                                  onTap: _openAllBuyerReviewsPage,
+                                  child: _ReviewBubble(review: r),
+                                ),
+                              ),
+                            ),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-                  _KcalAndPriceRow(
-                    kcal: widget.kcal,
-                    originalPrice: widget.originalPrice,
-                    discountPrice: widget.discountPrice,
-                    formatPrice: _formatPrice,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _ChatButton(onTap: _openChatWithSeller),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Ulasan Makanan',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...widget.reviews.map(
-                    (r) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _ReviewBubble(review: r),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ],
@@ -262,7 +367,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 }
 
-// ==================== FOTO PRODUK + TOMBOL X ====================
 class _ProductPhoto extends StatelessWidget {
   final String image;
   final VoidCallback onClose;
@@ -342,7 +446,6 @@ class _ProductPhoto extends StatelessWidget {
   }
 }
 
-// ==================== RATING & WAKTU ====================
 class _RatingRow extends StatelessWidget {
   final double rating;
   final int reviewCount;
@@ -370,7 +473,7 @@ class _RatingRow extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Text(
-          '($reviewCount ulasan)',
+          '(' + reviewCount.toString() + ' ulasan)',
           style: const TextStyle(fontSize: 13, color: Colors.black54),
         ),
         const SizedBox(width: 6),
@@ -385,15 +488,12 @@ class _RatingRow extends StatelessWidget {
   }
 }
 
-// ==================== KALORI & HARGA ====================
-class _KcalAndPriceRow extends StatelessWidget {
-  final int kcal;
+class _PriceRow extends StatelessWidget {
   final int originalPrice;
   final int discountPrice;
   final String Function(int) formatPrice;
 
-  const _KcalAndPriceRow({
-    required this.kcal,
+  const _PriceRow({
     required this.originalPrice,
     required this.discountPrice,
     required this.formatPrice,
@@ -407,35 +507,9 @@ class _KcalAndPriceRow extends StatelessWidget {
       spacing: 10,
       runSpacing: 8,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: kLightGreen,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.local_fire_department,
-                size: 14,
-                color: kDarkGreen,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '$kcal kcal',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: kDarkGreen,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
         if (hasDiscount)
           Text(
-            'Rp${formatPrice(originalPrice)}',
+            'Rp' + formatPrice(originalPrice),
             style: const TextStyle(
               fontSize: 14,
               color: Colors.black38,
@@ -443,7 +517,7 @@ class _KcalAndPriceRow extends StatelessWidget {
             ),
           ),
         Text(
-          'Rp${formatPrice(discountPrice)}',
+          'Rp' + formatPrice(discountPrice),
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -455,7 +529,6 @@ class _KcalAndPriceRow extends StatelessWidget {
   }
 }
 
-// ==================== TOMBOL CHAT DENGAN PENJUAL ====================
 class _ChatButton extends StatelessWidget {
   final VoidCallback onTap;
   const _ChatButton({required this.onTap});
@@ -484,7 +557,6 @@ class _ChatButton extends StatelessWidget {
   }
 }
 
-// ==================== BUBBLE ULASAN ====================
 class _ReviewBubble extends StatelessWidget {
   final ReviewData review;
   const _ReviewBubble({required this.review});
@@ -525,7 +597,6 @@ class _ReviewBubble extends StatelessWidget {
   }
 }
 
-// ==================== BAR BAWAH ====================
 class _BottomBar extends StatelessWidget {
   final int quantity;
   final ValueChanged<int> onQuantityChanged;
@@ -590,7 +661,7 @@ class _BottomBar extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '$quantity',
+                        quantity.toString(),
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -644,31 +715,34 @@ class _BottomBar extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Beli Sekarang',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13.5,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Beli Sekarang',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 1,
-                            height: 14,
-                            color: Colors.white.withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Rp${formatPrice(totalPrice)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13.5,
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 1,
+                              height: 14,
+                              color: Colors.white.withValues(alpha: 0.4),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              'Rp' + formatPrice(totalPrice),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
