@@ -1,9 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/cart_state.dart';
 import '../services/favorite_products_state.dart';
 import 'chat_detail_page.dart';
-import '../services/cart_state.dart';
 import 'checkout_page.dart';
 
 class ReviewData {
@@ -50,23 +52,18 @@ class ProductDetailPage extends StatefulWidget {
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _quantity = 1;
 
-  bool get _isFavorited => FavoriteProductsState.instance.products.value.any(
-    (p) => p.storeName == widget.storeName && p.description == widget.name,
-  );
-
-  void _toggleFavorite() {
+  void _toggleFavorite(bool isCurrentlyFavorited) {
     final product = FavoriteProductData(
       storeName: widget.storeName,
       description: widget.name,
       price: widget.discountPrice,
+      image: widget.image,
     );
-    setState(() {
-      if (_isFavorited) {
-        FavoriteProductsState.instance.remove(product);
-      } else {
-        FavoriteProductsState.instance.addProduct(product);
-      }
-    });
+    if (isCurrentlyFavorited) {
+      FavoriteProductsState.instance.remove(product);
+    } else {
+      FavoriteProductsState.instance.addProduct(product);
+    }
   }
 
   void _openChatWithSeller() {
@@ -179,24 +176,37 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: _toggleFavorite,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.redAccent.withValues(alpha: 0.5),
+                      ValueListenableBuilder<FavProductList>(
+                        valueListenable:
+                            FavoriteProductsState.instance.products,
+                        builder: (context, favProducts, _) {
+                          final isFavorited = favProducts.any(
+                            (p) =>
+                                p.storeName == widget.storeName &&
+                                p.description == widget.name,
+                          );
+                          return GestureDetector(
+                            onTap: () => _toggleFavorite(isFavorited),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.redAccent.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Icon(
+                                isFavorited
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: Colors.redAccent,
+                                size: 22,
+                              ),
                             ),
-                          ),
-                          child: Icon(
-                            _isFavorited
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            color: Colors.redAccent,
-                            size: 22,
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -258,37 +268,59 @@ class _ProductPhoto extends StatelessWidget {
   final VoidCallback onClose;
   const _ProductPhoto({required this.image, required this.onClose});
 
+  Widget _buildImage() {
+    Widget fallback() => Container(
+      height: 260,
+      width: double.infinity,
+      color: kLightGreen,
+      child: Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.35),
+        size: 56,
+      ),
+    );
+
+    if (image.isEmpty) return fallback();
+
+    if (image.startsWith('assets/')) {
+      return Image.asset(
+        image,
+        height: 260,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback(),
+      );
+    }
+
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return Image.network(
+        image,
+        height: 260,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback(),
+      );
+    }
+
+    try {
+      final cleanBase64 = image.contains(',') ? image.split(',').last : image;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        height: 260,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback(),
+      );
+    } catch (_) {
+      return fallback();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        image.isEmpty
-            ? Container(
-                height: 260,
-                width: double.infinity,
-                color: kLightGreen,
-                child: Icon(
-                  Icons.image_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.35),
-                  size: 56,
-                ),
-              )
-            : Image.asset(
-                image,
-                height: 260,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  height: 260,
-                  width: double.infinity,
-                  color: kLightGreen,
-                  child: Icon(
-                    Icons.image_outlined,
-                    color: kDarkGreen.withValues(alpha: 0.35),
-                    size: 56,
-                  ),
-                ),
-              ),
+        _buildImage(),
         Positioned(
           top: 44,
           right: 16,
@@ -493,7 +525,7 @@ class _ReviewBubble extends StatelessWidget {
   }
 }
 
-// ==================== BAR BAWAH (STEPPER + TAMBAH KE KERANJANG) ====================
+// ==================== BAR BAWAH ====================
 class _BottomBar extends StatelessWidget {
   final int quantity;
   final ValueChanged<int> onQuantityChanged;

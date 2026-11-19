@@ -1,19 +1,25 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import 'product_detail_page.dart';
 import '../services/favorite_stores_state.dart';
+import 'chat_detail_page.dart';
+import 'product_detail_page.dart';
 
 // ==================== DATA PRODUK TOKO ====================
 class StoreProductData {
   final String name;
   final int price;
   final String description;
+  final String image;
 
   const StoreProductData({
     required this.name,
     required this.price,
     this.description = 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+    this.image = '',
   });
 }
 
@@ -22,18 +28,18 @@ class StoreProfileData {
   final String name;
   final String description;
   final double rating;
+  final String image;
   final List<StoreProductData> products;
 
   const StoreProfileData({
     required this.name,
     required this.description,
     required this.rating,
+    this.image = '',
     required this.products,
   });
 }
 
-// Data toko sementara (hardcode), disesuaikan dengan nama-nama toko yang
-// sudah dipakai di Home Page User. Ganti dengan data dari backend nanti.
 const Map<String, StoreProfileData> kStoreProfiles = {
   'Kue Kering Tho': StoreProfileData(
     name: 'Kue Kering Tho',
@@ -101,10 +107,12 @@ StoreProfileData resolveStoreProfile(String storeName) {
       StoreProfileData(
         name: storeName,
         description: 'Toko ini belum menambahkan deskripsi.',
-        rating: 0,
+        rating: 4.8,
         products: const [],
       );
 }
+
+typedef StoreProductList = List<StoreProductData>;
 
 class StoreDetailPage extends StatefulWidget {
   final String storeName;
@@ -115,14 +123,6 @@ class StoreDetailPage extends StatefulWidget {
 }
 
 class _StoreDetailPageState extends State<StoreDetailPage> {
-  bool get _liked => FavoriteStoresState.instance.isFavorite(widget.storeName);
-
-  void _toggleLike() {
-    setState(() {
-      FavoriteStoresState.instance.toggle(widget.storeName);
-    });
-  }
-
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
@@ -130,62 +130,174 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
     );
   }
 
+  Stream<StoreProfileData> _storeProfileStream() {
+    final fallback = resolveStoreProfile(widget.storeName);
+    final targetLower = widget.storeName.trim().toLowerCase();
+
+    return FirebaseFirestore.instance.collection('tenants').snapshots().map((
+      snapshot,
+    ) {
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final namaToko = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim();
+        if (namaToko.toLowerCase() == targetLower) {
+          final desc = (data['deskripsi'] ?? data['description'] ?? '')
+              .toString()
+              .trim();
+          final rawRating = data['rating'] ?? 4.8;
+          final rating = rawRating is num ? rawRating.toDouble() : 4.8;
+          final foto = (data['fotoBase64'] ?? data['imageUrl'] ?? '')
+              .toString();
+
+          return StoreProfileData(
+            name: namaToko,
+            description: desc.isNotEmpty
+                ? desc
+                : 'Selamat datang di $namaToko! Temukan berbagai pilihan terbaik kami.',
+            rating: rating,
+            image: foto,
+            products: fallback.products,
+          );
+        }
+      }
+      return fallback;
+    });
+  }
+
+  Stream<StoreProductList> _storeProductsStream() {
+    final fallbackProducts = resolveStoreProfile(widget.storeName).products;
+    final targetLower = widget.storeName.trim().toLowerCase();
+
+    return FirebaseFirestore.instance.collection('products').snapshots().map((
+      snapshot,
+    ) {
+      final dbProducts = snapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final seller = (data['namaToko'] ?? data['seller'] ?? '')
+                .toString()
+                .trim();
+            return seller.toLowerCase() == targetLower;
+          })
+          .map((doc) {
+            final data = doc.data();
+            final rawPrice = data['price'] ?? data['harga'] ?? 0;
+            final price = rawPrice is int
+                ? rawPrice
+                : int.tryParse(rawPrice.toString()) ?? 0;
+            final imgBase64 = (data['imageBase64'] ?? '').toString();
+            final imgUrl =
+                (data['imageUrl'] ?? data['imagePath'] ?? data['image'] ?? '')
+                    .toString();
+
+            return StoreProductData(
+              name: (data['name'] ?? data['nama'] ?? 'Produk').toString(),
+              price: price,
+              description: (data['description'] ?? data['deskripsi'] ?? '')
+                  .toString(),
+              image: imgBase64.isNotEmpty ? imgBase64 : imgUrl,
+            );
+          })
+          .toList();
+
+      if (dbProducts.isEmpty) return fallbackProducts;
+      return [...dbProducts, ...fallbackProducts];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final profile = resolveStoreProfile(widget.storeName);
+    final fallbackProfile = resolveStoreProfile(widget.storeName);
 
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _TopBar(title: 'Detail Toko'),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: _StoreHeaderCard(
-                  profile: profile,
-                  liked: _liked,
-                  onLikeTap: _toggleLike,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Detail Produk',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: kDarkGreen,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: profile.products.isEmpty
-                    ? const _EmptyProducts()
-                    : Column(
-                        children: profile.products
-                            .map(
-                              (p) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _StoreProductTile(
-                                  storeName: profile.name,
-                                  rating: profile.rating,
-                                  product: p,
-                                  formatPrice: _formatPrice,
-                                ),
-                              ),
-                            )
-                            .toList(),
+        child: StreamBuilder<StoreProfileData>(
+          stream: _storeProfileStream(),
+          builder: (context, profileSnap) {
+            final profile = profileSnap.data ?? fallbackProfile;
+
+            return StreamBuilder<StoreProductList>(
+              stream: _storeProductsStream(),
+              builder: (context, productSnap) {
+                final products = productSnap.data ?? profile.products;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _TopBar(title: 'Detail Toko'),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: ValueListenableBuilder<StoreNameSet>(
+                          valueListenable:
+                              FavoriteStoresState.instance.favorites,
+                          builder: (context, favSet, _) {
+                            final liked = favSet.contains(profile.name);
+                            return _StoreHeaderCard(
+                              profile: profile,
+                              productCount: products.length,
+                              liked: liked,
+                              onLikeTap: () => FavoriteStoresState.instance
+                                  .toggle(profile.name),
+                              onChatTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ChatDetailPage(
+                                      contactName: profile.name,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
                       ),
-              ),
-            ],
-          ),
+                      const SizedBox(height: 24),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Detail Produk',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: kDarkGreen,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: products.isEmpty
+                            ? const _EmptyProducts()
+                            : Column(
+                                children: products
+                                    .map(
+                                      (p) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: _StoreProductTile(
+                                          storeName: profile.name,
+                                          rating: profile.rating,
+                                          product: p,
+                                          formatPrice: _formatPrice,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -219,7 +331,7 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 40), // seimbangkan lebar tombol back
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -229,14 +341,60 @@ class _TopBar extends StatelessWidget {
 // ==================== HEADER TOKO ====================
 class _StoreHeaderCard extends StatelessWidget {
   final StoreProfileData profile;
+  final int productCount;
   final bool liked;
   final VoidCallback onLikeTap;
+  final VoidCallback onChatTap;
 
   const _StoreHeaderCard({
     required this.profile,
+    required this.productCount,
     required this.liked,
     required this.onLikeTap,
+    required this.onChatTap,
   });
+
+  Widget _buildStoreLogo(String imageSource) {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.storefront_outlined,
+        color: kDarkGreen.withValues(alpha: 0.7),
+        size: 30,
+      );
+    }
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.storefront_outlined,
+          color: kDarkGreen.withValues(alpha: 0.7),
+          size: 30,
+        ),
+      );
+    }
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.storefront_outlined,
+          color: kDarkGreen.withValues(alpha: 0.7),
+          size: 30,
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.storefront_outlined,
+        color: kDarkGreen.withValues(alpha: 0.7),
+        size: 30,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,17 +414,13 @@ class _StoreHeaderCard extends StatelessWidget {
               Container(
                 width: 64,
                 height: 64,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: kLightGreen,
                   border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
                 ),
-                child: Icon(
-                  Icons.storefront_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.7),
-                  size: 30,
-                ),
-                // Ganti dengan Image.asset/Image.network logo toko asli.
+                child: _buildStoreLogo(profile.image),
               ),
               const Spacer(),
               Column(
@@ -285,7 +439,7 @@ class _StoreHeaderCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        'Ikuti',
+                        liked ? 'Diikuti' : 'Ikuti',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -295,23 +449,26 @@ class _StoreHeaderCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.5),
+                  GestureDetector(
+                    onTap: onChatTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 8,
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Pesan',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: kDarkGreen.withValues(alpha: 0.5),
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Pesan',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: kDarkGreen,
+                        ),
                       ),
                     ),
                   ),
@@ -345,7 +502,7 @@ class _StoreHeaderCard extends StatelessWidget {
               const Text('|', style: TextStyle(color: Colors.black38)),
               const SizedBox(width: 6),
               Text(
-                '${profile.products.length} Produk',
+                '$productCount Produk',
                 style: const TextStyle(fontSize: 13, color: Colors.black54),
               ),
             ],
@@ -379,6 +536,59 @@ class _StoreProductTile extends StatelessWidget {
     required this.formatPrice,
   });
 
+  Widget _buildProductThumb(String imageSource) {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+        size: 24,
+      );
+    }
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 24,
+        ),
+      );
+    }
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 24,
+        ),
+      );
+    }
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 24,
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+        size: 24,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -395,7 +605,10 @@ class _StoreProductTile extends StatelessWidget {
               reviewCount: 0,
               prepTime: '15-20 min',
               kcal: 250,
-              description: product.description,
+              description: product.description.isNotEmpty
+                  ? product.description
+                  : 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+              image: product.image,
             ),
           ),
         );
@@ -412,16 +625,12 @@ class _StoreProductTile extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: kLightGreen,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                Icons.image_outlined,
-                color: kDarkGreen.withValues(alpha: 0.4),
-                size: 24,
-              ),
-              // Ganti dengan Image.asset/Image.network foto produk asli.
+              child: _buildProductThumb(product.image),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -455,7 +664,7 @@ class _StoreProductTile extends StatelessWidget {
   }
 }
 
-// ==================== STATE KOSONG (BELUM ADA PRODUK) ====================
+// ==================== STATE KOSONG ====================
 class _EmptyProducts extends StatelessWidget {
   const _EmptyProducts();
 
