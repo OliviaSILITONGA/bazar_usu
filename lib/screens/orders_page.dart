@@ -1,9 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/order_state.dart';
 import '../widgets/search_bar_field.dart';
-import 'main_navigation_page.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({super.key});
@@ -24,6 +25,12 @@ class _OrdersPageState extends State<OrdersPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -31,6 +38,8 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -46,22 +55,38 @@ class _OrdersPageState extends State<OrdersPage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ValueListenableBuilder<List<OrderData>>(
-                valueListenable: OrderState.instance.orders,
-                builder: (context, orders, _) {
-                  final filtered = orders
-                      .where((o) => o.status == _tabs[_selectedTab])
-                      .toList();
+              child: StreamBuilder<OrderList>(
+                stream: OrderState.instance.userOrdersStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final allOrders = snapshot.data ?? [];
+                  final currentTab = _tabs[_selectedTab];
+
+                  final filtered = allOrders.where((o) {
+                    final matchesTab =
+                        o.status.toLowerCase() == currentTab.toLowerCase();
+                    if (!matchesTab) return false;
+
+                    if (query.isEmpty) return true;
+                    return o.items.any(
+                      (item) =>
+                          item.description.toLowerCase().contains(query) ||
+                          item.storeName.toLowerCase().contains(query),
+                    );
+                  }).toList();
 
                   if (filtered.isEmpty) {
                     return const _EmptyState();
                   }
 
                   return ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                     itemCount: filtered.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) =>
@@ -157,8 +182,34 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
+  Future<void> _advanceStatus(BuildContext context, String nextStatus) async {
+    if (order.id.isEmpty) return;
+    try {
+      await OrderState.instance.updateOrderStatus(order.id, nextStatus);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status pesanan diperbarui menjadi "$nextStatus"'),
+            backgroundColor: kDarkGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memperbarui status: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final statusLower = order.status.toLowerCase();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -191,23 +242,11 @@ class _OrderCard extends StatelessWidget {
           ),
           const Divider(height: 18),
           ...order.items.map(
-            (item) => Padding(
+            (OrderItem item) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: kLightGreen,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.image_outlined,
-                      color: kDarkGreen.withValues(alpha: 0.4),
-                      size: 20,
-                    ),
-                  ),
+                  _OrderItemThumb(imageSource: item.image),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -264,9 +303,125 @@ class _OrderCard extends StatelessWidget {
               ),
             ],
           ),
+          if (statusLower == 'perlu dibayar' ||
+              statusLower == 'akan diterima' ||
+              statusLower == 'untuk diulas') ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (statusLower == 'perlu dibayar') {
+                    _advanceStatus(context, 'Akan Diterima');
+                  } else if (statusLower == 'akan diterima') {
+                    _advanceStatus(context, 'Untuk Diulas');
+                  } else if (statusLower == 'untuk diulas') {
+                    _advanceStatus(context, 'Pesanan Selesai');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kDarkGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Text(
+                  statusLower == 'perlu dibayar'
+                      ? 'Bayar Sekarang'
+                      : statusLower == 'akan diterima'
+                      ? 'Pesanan Diterima'
+                      : 'Selesaikan Pesanan',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+}
+
+// ==================== THUMBNAIL ITEM PESANAN ====================
+class _OrderItemThumb extends StatelessWidget {
+  final String imageSource;
+  const _OrderItemThumb({required this.imageSource});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: kLightGreen,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: _buildImage(),
+    );
+  }
+
+  Widget _buildImage() {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+        size: 20,
+      );
+    }
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 20,
+        ),
+      );
+    }
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 20,
+        ),
+      );
+    }
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 20,
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.image_outlined,
+        color: kDarkGreen.withValues(alpha: 0.4),
+        size: 20,
+      );
+    }
   }
 }
 

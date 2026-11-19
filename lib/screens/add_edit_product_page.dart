@@ -13,17 +13,27 @@ import '../services/seller_state.dart';
 /// Dipakai dari SellerProductsPage (tombol + dan ikon edit).
 class AddEditProductPage extends StatefulWidget {
   final SellerProduct? existing;
-  const AddEditProductPage({super.key, this.existing});
+  final String? existingCategory;
+
+  const AddEditProductPage({super.key, this.existing, this.existingCategory});
 
   @override
   State<AddEditProductPage> createState() => _AddEditProductPageState();
 }
 
 class _AddEditProductPageState extends State<AddEditProductPage> {
+  static const List<String> _categories = [
+    'Makanan',
+    'Minuman',
+    'Jajanan',
+    'Lainnya',
+  ];
+
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
   late final TextEditingController _descController;
 
+  late String _selectedCategory;
   Uint8List? _photoBytes;
   String? _existingImageUrl;
   bool _isSaving = false;
@@ -40,6 +50,11 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
     _descController = TextEditingController(
       text: widget.existing?.description ?? '',
     );
+
+    final initialCat = widget.existingCategory ?? '';
+    _selectedCategory = _categories.contains(initialCat)
+        ? initialCat
+        : 'Makanan';
 
     final rawImage = widget.existing?.imagePath ?? '';
     if (rawImage.isNotEmpty) {
@@ -134,6 +149,8 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           'nama': name,
           'price': price,
           'harga': price,
+          'category': _selectedCategory,
+          'kategori': _selectedCategory,
           'description': description,
           'deskripsi': description,
           'imageBase64': imageBase64,
@@ -162,6 +179,8 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           'nama': name,
           'price': price,
           'harga': price,
+          'category': _selectedCategory,
+          'kategori': _selectedCategory,
           'description': description,
           'deskripsi': description,
           'imageBase64': imageBase64,
@@ -247,6 +266,31 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
             TextField(
               controller: _nameController,
               decoration: _decoration('Contoh: Donat'),
+            ),
+            const SizedBox(height: 16),
+            const _Label('Kategori'),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _selectedCategory,
+              decoration: _decoration('Pilih Kategori'),
+              dropdownColor: Colors.white,
+              icon: const Icon(Icons.keyboard_arrow_down, color: kDarkGreen),
+              items: _categories
+                  .map(
+                    (cat) => DropdownMenuItem<String>(
+                      value: cat,
+                      child: Text(
+                        cat,
+                        style: const TextStyle(fontSize: 14, color: kDarkGreen),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _selectedCategory = val);
+                }
+              },
             ),
             const SizedBox(height: 16),
             const _Label('Harga (Rp)'),

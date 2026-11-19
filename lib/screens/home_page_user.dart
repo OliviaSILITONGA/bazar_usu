@@ -1,13 +1,17 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../widgets/search_bar_field.dart';
+import 'cart_page.dart';
 import 'fitur_AI.dart';
 import 'notification_page.dart';
-import 'cart_page.dart';
 import 'product_detail_page.dart';
 import 'store_detail_page.dart';
-import 'main_navigation_page.dart';
-import '../widgets/search_bar_field.dart';
+
+typedef ProductList = List<ProductData>;
 
 class HomePageUser extends StatefulWidget {
   const HomePageUser({super.key});
@@ -38,15 +42,61 @@ class _HomePageUserState extends State<HomePageUser> {
     });
   }
 
-  List<ProductData> get _filteredProducts {
+  String _formatPrice(int price) {
+    final formatted = price.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]}.',
+    );
+    return 'Rp $formatted';
+  }
+
+  // Stream produk dari Firestore digabung dengan produk bawaan
+  Stream<ProductList> _productsStream() {
+    return FirebaseFirestore.instance.collection('products').snapshots().map((
+      snapshot,
+    ) {
+      final firestoreProducts = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final rawPrice = data['price'] ?? data['harga'] ?? 0;
+        final priceInt = rawPrice is int
+            ? rawPrice
+            : int.tryParse(rawPrice.toString()) ?? 0;
+
+        final imgBase64 = (data['imageBase64'] ?? '').toString();
+        final imgUrl =
+            (data['imageUrl'] ?? data['imagePath'] ?? data['image'] ?? '')
+                .toString();
+
+        return ProductData(
+          name: (data['name'] ?? data['nama'] ?? 'Produk').toString(),
+          price: _formatPrice(priceInt),
+          seller: (data['namaToko'] ?? data['seller'] ?? 'Toko Bazar')
+              .toString(),
+          image: imgBase64.isNotEmpty ? imgBase64 : imgUrl,
+          category: (data['category'] ?? data['kategori'] ?? 'Lainnya')
+              .toString(),
+          description: (data['description'] ?? data['deskripsi'] ?? '')
+              .toString(),
+          reviews: const [
+            ReviewData(stars: 5, comment: 'Produk segar dan mantap!'),
+          ],
+        );
+      }).toList();
+
+      return [...firestoreProducts, ...kAllProducts];
+    });
+  }
+
+  List<ProductData> _filterProducts(ProductList allProducts) {
     final query = _searchController.text.trim().toLowerCase();
-    return kAllProducts.where((p) {
+    return allProducts.where((p) {
       final matchesQuery =
           query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
           p.seller.toLowerCase().contains(query);
       final matchesCategory =
-          _selectedCategory == null || p.category == _selectedCategory;
+          _selectedCategory == null ||
+          p.category.toLowerCase() == _selectedCategory!.toLowerCase();
       return matchesQuery && matchesCategory;
     }).toList();
   }
@@ -56,49 +106,55 @@ class _HomePageUserState extends State<HomePageUser> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredProducts;
-
     return Scaffold(
       backgroundColor: kBg,
       body: Stack(
         children: [
           SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 12),
-                  _SearchBar(controller: _searchController),
-                  const SizedBox(height: 20),
-                  _CategoryRow(
-                    selectedCategory: _selectedCategory,
-                    onSelected: _onCategorySelected,
+            child: StreamBuilder<ProductList>(
+              stream: _productsStream(),
+              builder: (context, snapshot) {
+                final allProducts = snapshot.data ?? kAllProducts;
+                final filtered = _filterProducts(allProducts);
+
+                return SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      _SearchBar(controller: _searchController),
+                      const SizedBox(height: 20),
+                      _CategoryRow(
+                        selectedCategory: _selectedCategory,
+                        onSelected: _onCategorySelected,
+                      ),
+                      const SizedBox(height: 20),
+                      if (_isFiltering) ...[
+                        _SectionTitle(
+                          title: _selectedCategory != null
+                              ? 'Kategori: $_selectedCategory (${filtered.length})'
+                              : 'Hasil Pencarian (${filtered.length})',
+                        ),
+                        const SizedBox(height: 12),
+                        filtered.isEmpty
+                            ? const _EmptySearchResult()
+                            : _ProductGrid(products: filtered),
+                      ] else ...[
+                        const _PromoBanner(),
+                        const SizedBox(height: 24),
+                        const _SectionTitle(title: 'Produk Favorite'),
+                        const SizedBox(height: 12),
+                        _ProductGrid(products: allProducts),
+                        const SizedBox(height: 24),
+                        const _SectionTitle(title: 'Bazar Favorit'),
+                        const SizedBox(height: 14),
+                        const _PopularStoresRow(),
+                      ],
+                      const SizedBox(height: 100),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  if (_isFiltering) ...[
-                    _SectionTitle(
-                      title: _selectedCategory != null
-                          ? 'Kategori: $_selectedCategory (${filtered.length})'
-                          : 'Hasil Pencarian (${filtered.length})',
-                    ),
-                    const SizedBox(height: 12),
-                    filtered.isEmpty
-                        ? const _EmptySearchResult()
-                        : _ProductGrid(products: filtered),
-                  ] else ...[
-                    const _PromoBanner(),
-                    const SizedBox(height: 24),
-                    const _SectionTitle(title: 'Produk Favorite'),
-                    const SizedBox(height: 12),
-                    _ProductGrid(products: kAllProducts),
-                    const SizedBox(height: 24),
-                    const _SectionTitle(title: 'Bazar Favorit'),
-                    const SizedBox(height: 14),
-                    const _PopularStoresRow(),
-                  ],
-                  const SizedBox(height: 100),
-                ],
-              ),
+                );
+              },
             ),
           ),
           Positioned(
@@ -202,7 +258,7 @@ class _IconWithBadge extends StatelessWidget {
   }
 }
 
-// ==================== KATEGORI (SEKARANG BISA DITEKAN) ====================
+// ==================== KATEGORI ====================
 class _CategoryRow extends StatelessWidget {
   final String? selectedCategory;
   final ValueChanged<String> onSelected;
@@ -489,13 +545,14 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ==================== DATASET PRODUK (DIPAKAI UNTUK GRID & PENCARIAN) ====================
+// ==================== DATASET PRODUK ====================
 class ProductData {
   final String name;
   final String price;
   final String seller;
   final String image;
   final String category;
+  final String description;
   final List<ReviewData> reviews;
 
   const ProductData({
@@ -504,6 +561,7 @@ class ProductData {
     required this.seller,
     required this.image,
     required this.category,
+    this.description = 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
     required this.reviews,
   });
 }
@@ -613,6 +671,85 @@ class _ProductCard extends StatelessWidget {
     return int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   }
 
+  Widget _buildProductImage(String imageSource) {
+    if (imageSource.isEmpty) {
+      return Container(
+        width: double.infinity,
+        color: kLightGreen,
+        child: Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 32,
+        ),
+      );
+    }
+
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          width: double.infinity,
+          color: kLightGreen,
+          child: Icon(
+            Icons.image_outlined,
+            color: kDarkGreen.withValues(alpha: 0.4),
+            size: 32,
+          ),
+        ),
+      );
+    }
+
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          width: double.infinity,
+          color: kLightGreen,
+          child: Icon(
+            Icons.image_outlined,
+            color: kDarkGreen.withValues(alpha: 0.4),
+            size: 32,
+          ),
+        ),
+      );
+    }
+
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          width: double.infinity,
+          color: kLightGreen,
+          child: Icon(
+            Icons.image_outlined,
+            color: kDarkGreen.withValues(alpha: 0.4),
+            size: 32,
+          ),
+        ),
+      );
+    } catch (_) {
+      return Container(
+        width: double.infinity,
+        color: kLightGreen,
+        child: Icon(
+          Icons.image_outlined,
+          color: kDarkGreen.withValues(alpha: 0.4),
+          size: 32,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -629,7 +766,7 @@ class _ProductCard extends StatelessWidget {
               reviewCount: 120,
               prepTime: '15-20 min',
               kcal: 250,
-              description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+              description: data.description.isNotEmpty ? data.description : 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
               image: data.image,
               reviews: data.reviews,
             ),
@@ -646,22 +783,7 @@ class _ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Image.asset(
-                data.image,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: double.infinity,
-                  color: kLightGreen,
-                  child: Icon(
-                    Icons.image_outlined,
-                    color: kDarkGreen.withValues(alpha: 0.4),
-                    size: 32,
-                  ),
-                ),
-              ),
-            ),
+            Expanded(child: _buildProductImage(data.image)),
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -669,6 +791,8 @@ class _ProductCard extends StatelessWidget {
                 children: [
                   Text(
                     data.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -718,6 +842,8 @@ class _ProductCard extends StatelessWidget {
                     },
                     child: Text(
                       data.seller,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
                         color: kDarkGreen.withValues(alpha: 0.7),
@@ -820,15 +946,44 @@ class _PopularStoresRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 90,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _stores.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 16),
-        itemBuilder: (context, index) => _StoreAvatar(data: _stores[index]),
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('tenants').snapshots(),
+      builder: (context, snapshot) {
+        final firestoreStores = (snapshot.data?.docs ?? [])
+            .map((doc) {
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              final name = (data['namaToko'] ?? data['storeName'] ?? '')
+                  .toString()
+                  .trim();
+              final foto = (data['fotoBase64'] ?? '').toString();
+              return _StoreData(name: name, image: foto);
+            })
+            .where((s) => s.name.isNotEmpty)
+            .toList();
+
+        // Gabungkan toko dari Firestore dengan daftar toko bawaan tanpa duplikat nama
+        final existingNames = firestoreStores
+            .map((s) => s.name.toLowerCase())
+            .toSet();
+        final mergedStores = [
+          ...firestoreStores,
+          ..._stores.where(
+            (s) => !existingNames.contains(s.name.toLowerCase()),
+          ),
+        ];
+
+        return SizedBox(
+          height: 90,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: mergedStores.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 16),
+            itemBuilder: (context, index) =>
+                _StoreAvatar(data: mergedStores[index]),
+          ),
+        );
+      },
     );
   }
 }
@@ -842,6 +997,62 @@ class _StoreData {
 class _StoreAvatar extends StatelessWidget {
   final _StoreData data;
   const _StoreAvatar({required this.data});
+
+  Widget _buildAvatarImage(String imageSource) {
+    if (imageSource.isEmpty) {
+      return Icon(
+        Icons.storefront_outlined,
+        color: kDarkGreen.withValues(alpha: 0.6),
+        size: 26,
+      );
+    }
+
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.storefront_outlined,
+          color: kDarkGreen.withValues(alpha: 0.6),
+          size: 26,
+        ),
+      );
+    }
+
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.storefront_outlined,
+          color: kDarkGreen.withValues(alpha: 0.6),
+          size: 26,
+        ),
+      );
+    }
+
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.storefront_outlined,
+          color: kDarkGreen.withValues(alpha: 0.6),
+          size: 26,
+        ),
+      );
+    } catch (_) {
+      return Icon(
+        Icons.storefront_outlined,
+        color: kDarkGreen.withValues(alpha: 0.6),
+        size: 26,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -867,15 +1078,7 @@ class _StoreAvatar extends StatelessWidget {
                 border: Border.all(color: kDarkGreen.withValues(alpha: 0.3)),
               ),
               clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                data.image,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Icon(
-                  Icons.storefront_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.6),
-                  size: 26,
-                ),
-              ),
+              child: _buildAvatarImage(data.image),
             ),
             const SizedBox(height: 6),
             Text(

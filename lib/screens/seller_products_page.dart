@@ -13,10 +13,19 @@ import 'add_edit_product_page.dart';
 class SellerProductsPage extends StatelessWidget {
   const SellerProductsPage({super.key});
 
-  void _openProductForm(BuildContext context, {SellerProduct? existing}) {
+  void _openProductForm(
+    BuildContext context, {
+    SellerProduct? existing,
+    String? existingCategory,
+  }) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => AddEditProductPage(existing: existing)),
+      MaterialPageRoute(
+        builder: (_) => AddEditProductPage(
+          existing: existing,
+          existingCategory: existingCategory,
+        ),
+      ),
     );
   }
 
@@ -86,6 +95,7 @@ class SellerProductsPage extends StatelessWidget {
       id: doc.id,
       name: (data['name'] ?? data['nama'] ?? 'Produk').toString(),
       price: price,
+      description: (data['description'] ?? data['deskripsi'] ?? '').toString(),
       imagePath:
           (data['imageBase64'] ?? data['imageUrl'] ?? data['imagePath'] ?? '')
               .toString(),
@@ -202,8 +212,13 @@ class SellerProductsPage extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: () =>
-                            _openProductForm(context, existing: product),
+                        onPressed: () => _openProductForm(
+                          context,
+                          existing: product,
+                          existingCategory:
+                              (data['category'] ?? data['kategori'] ?? '')
+                                  .toString(),
+                        ),
                         icon: Icon(
                           Icons.edit_outlined,
                           size: 19,
