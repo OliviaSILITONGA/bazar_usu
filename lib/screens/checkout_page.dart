@@ -1,8 +1,12 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/order_state.dart';
 import '../services/cart_state.dart';
+import '../services/order_state.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<CartItem> items;
@@ -16,6 +20,7 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   int _selectedPayment = 0;
+  bool _isSubmitting = false;
 
   static const List<_PaymentOption> _payments = [
     _PaymentOption(icon: Icons.account_balance_wallet_outlined, label: 'Dana'),
@@ -26,7 +31,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _PaymentOption(icon: Icons.account_balance_outlined, label: 'Bank Lain'),
   ];
 
-  static const int _ongkir = 0; // gratis ongkir simulasi
+  static const int _ongkir = 0;
   int get _grandTotal => widget.total + _ongkir;
 
   String _formatPrice(int price) {
@@ -36,51 +41,161 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  void _buatPesanan() {
-    final orderItems = widget.items
-        .map(
-          (e) => OrderItem(
-            storeName: e.storeName,
-            description: e.description,
-            price: e.price,
-            quantity: e.quantity,
-          ),
-        )
-        .toList();
+  Future<void> _buatPesanan() async {
+    if (_isSubmitting) return;
 
-    OrderState.instance.addOrder(
-      OrderData(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        items: orderItems,
-        total: _grandTotal,
-        status: 'Akan Diterima',
-        createdAt: DateTime.now(),
-      ),
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Pesanan Berhasil Dibuat'),
-        content: const Text(
-          'Pesananmu sedang diproses dan bisa dilihat di halaman Pesanan.',
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi login tidak ditemukan. Silakan login ulang.'),
+          backgroundColor: Colors.redAccent,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext); // tutup dialog
-              Navigator.pop(
-                context,
-                true,
-              ); // kembali ke keranjang, beri sinyal sukses
-            },
-            child: const Text('Oke'),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+
+      // 1. Ambil profil pembeli (nama & alamat) dari koleksi users
+      String buyerName = user.displayName ?? 'Pembeli';
+      String buyerPhone = '';
+      String buyerAddress =
+          'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan';
+
+      final userDoc = await firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final uData = userDoc.data() ?? {};
+        final dbName = (uData['nama'] ?? uData['name'] ?? '').toString().trim();
+        final dbPhone = (uData['noHp'] ?? uData['phone'] ?? '')
+            .toString()
+            .trim();
+        final dbAddr = (uData['alamat'] ?? uData['address'] ?? '')
+            .toString()
+            .trim();
+        if (dbName.isNotEmpty) buyerName = dbName;
+        if (dbPhone.isNotEmpty) buyerPhone = dbPhone;
+        if (dbAddr.isNotEmpty) buyerAddress = dbAddr;
+      }
+
+      // 2. Kelompokkan item berdasarkan nama toko (agar jika multi-toko tetap rapi)
+      final Map<String, List<CartItem>> itemsByStore = {};
+      for (final item in widget.items) {
+        itemsByStore.putIfAbsent(item.storeName, () => []).add(item);
+      }
+
+      // Ambil daftar tenants sekali untuk mencocokkan namaToko -> sellerId
+      final tenantsSnap = await firestore.collection('tenants').get();
+      final Map<String, String> storeToSellerId = {};
+      for (final doc in tenantsSnap.docs) {
+        final tData = doc.data();
+        final namaToko = (tData['namaToko'] ?? tData['storeName'] ?? '')
+            .toString()
+            .trim();
+        if (namaToko.isNotEmpty) {
+          storeToSellerId[namaToko.toLowerCase()] = doc.id;
+        }
+      }
+
+      final paymentMethod = _payments[_selectedPayment].label;
+      final now = DateTime.now();
+
+      // 3. Simpan setiap pesanan toko ke koleksi Firestore 'orders'
+      for (final entry in itemsByStore.entries) {
+        final storeName = entry.key;
+        final storeItems = entry.value;
+        final sellerId = storeToSellerId[storeName.toLowerCase()] ?? '';
+        final storeSubtotal = storeItems.fold<int>(
+          0,
+          (sum, e) => sum + (e.price * e.quantity),
+        );
+
+        final docRef = await firestore.collection('orders').add({
+          'buyerId': user.uid,
+          'userId': user.uid,
+          'buyerName': buyerName,
+          'buyerPhone': buyerPhone,
+          'buyerAddress': buyerAddress,
+          'sellerId': sellerId,
+          'tenantId': sellerId,
+          'namaToko': storeName,
+          'storeName': storeName,
+          'items': storeItems
+              .map(
+                (e) => {
+                  'storeName': e.storeName,
+                  'name': e.description,
+                  'description': e.description,
+                  'price': e.price,
+                  'quantity': e.quantity,
+                },
+              )
+              .toList(),
+          'total': storeSubtotal,
+          'totalPrice': storeSubtotal,
+          'paymentMethod': paymentMethod,
+          'status': 'Perlu dibayar',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // Sinkronkan juga ke state lokal OrderState
+        OrderState.instance.addOrder(
+          OrderData(
+            id: docRef.id,
+            items: storeItems
+                .map(
+                  (e) => OrderItem(
+                    storeName: e.storeName,
+                    description: e.description,
+                    price: e.price,
+                    quantity: e.quantity,
+                  ),
+                )
+                .toList(),
+            total: storeSubtotal,
+            status: 'Perlu dibayar',
+            createdAt: now,
           ),
-        ],
-      ),
-    );
+        );
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Pesanan Berhasil Dibuat'),
+          content: const Text(
+            'Pesananmu sudah masuk ke sistem penjual dan bisa dipantau di halaman Pesanan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.pop(context, true);
+              },
+              child: const Text('Oke'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuat pesanan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -245,6 +360,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         total: _grandTotal,
         itemCount: widget.items.length,
         formatPrice: _formatPrice,
+        isSubmitting: _isSubmitting,
         onBuatPesanan: _buatPesanan,
       ),
     );
@@ -297,58 +413,89 @@ class _AddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.location_on, color: kDarkGreen, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Text(
-                      'Nama Pengguna',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: uid.isNotEmpty
+          ? FirebaseFirestore.instance.collection('users').doc(uid).snapshots()
+          : const Stream.empty(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+        final name =
+            (data['nama'] ??
+                    data['name'] ??
+                    FirebaseAuth.instance.currentUser?.displayName ??
+                    'Nama Pengguna')
+                .toString();
+        final phone = (data['noHp'] ?? data['phone'] ?? '(+62) 8xx-xxxx-xxxx')
+            .toString();
+        final address =
+            (data['alamat'] ??
+                    data['address'] ??
+                    'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan, Sumatera Utara')
+                .toString();
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on, color: kDarkGreen, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          phone,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(height: 4),
                     Text(
-                      '(+62) 8xx-xxxx-xxxx',
-                      style: TextStyle(fontSize: 12.5, color: Colors.black54),
+                      address,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: kDarkGreen.withValues(alpha: 0.75),
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan, Sumatera Utara',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: kDarkGreen.withValues(alpha: 0.75),
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: kDarkGreen.withValues(alpha: 0.4),
+                size: 20,
+              ),
+            ],
           ),
-          Icon(
-            Icons.chevron_right,
-            color: kDarkGreen.withValues(alpha: 0.4),
-            size: 20,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -358,6 +505,51 @@ class _CheckoutItemTile extends StatelessWidget {
   final CartItem item;
   final String Function(int) formatPrice;
   const _CheckoutItemTile({required this.item, required this.formatPrice});
+
+  Widget _buildImage(String? imageSource) {
+    final fallback = Icon(
+      Icons.image_outlined,
+      color: kDarkGreen.withValues(alpha: 0.4),
+    );
+
+    if (imageSource == null || imageSource.isEmpty) return fallback;
+
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    } catch (_) {
+      return fallback;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -390,21 +582,7 @@ class _CheckoutItemTile extends StatelessWidget {
                   color: kLightGreen,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: (item.image != null && item.image!.isNotEmpty)
-                    ? Image.asset(
-                        item.image!,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.image_outlined,
-                          color: kDarkGreen.withValues(alpha: 0.4),
-                        ),
-                      )
-                    : Icon(
-                        Icons.image_outlined,
-                        color: kDarkGreen.withValues(alpha: 0.4),
-                      ),
+                child: _buildImage(item.image),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -525,12 +703,14 @@ class _CheckoutBottomBar extends StatelessWidget {
   final int total;
   final int itemCount;
   final String Function(int) formatPrice;
+  final bool isSubmitting;
   final VoidCallback onBuatPesanan;
 
   const _CheckoutBottomBar({
     required this.total,
     required this.itemCount,
     required this.formatPrice,
+    required this.isSubmitting,
     required this.onBuatPesanan,
   });
 
@@ -555,7 +735,7 @@ class _CheckoutBottomBar extends StatelessWidget {
           children: [
             Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min, // <-- perbaikan utama
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -577,7 +757,7 @@ class _CheckoutBottomBar extends StatelessWidget {
               ),
             ),
             ElevatedButton(
-              onPressed: onBuatPesanan,
+              onPressed: isSubmitting ? null : onBuatPesanan,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDarkGreen,
                 foregroundColor: Colors.white,
@@ -589,10 +769,19 @@ class _CheckoutBottomBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                 ),
               ),
-              child: const Text(
-                'Buat Pesanan',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Buat Pesanan',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
             ),
           ],
         ),

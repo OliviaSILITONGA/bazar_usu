@@ -1,7 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/seller_state.dart';
 
 class SellerOrdersPage extends StatelessWidget {
   const SellerOrdersPage({super.key});
@@ -13,34 +14,83 @@ class SellerOrdersPage extends StatelessWidget {
     );
   }
 
-  String _statusLabel(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.baru:
-        return 'Baru';
-      case OrderStatus.diproses:
-        return 'Diproses';
-      case OrderStatus.selesai:
-        return 'Selesai';
-      case OrderStatus.ditolak:
-        return 'Ditolak';
+  String _sellerStatusLabel(String rawStatus) {
+    final s = rawStatus.toLowerCase();
+    if (s == 'perlu dibayar' || s == 'baru') return 'Baru';
+    if (s == 'akan diterima' || s == 'diproses') return 'Diproses';
+    if (s == 'untuk diulas' || s == 'pesanan selesai' || s == 'selesai') {
+      return 'Selesai';
+    }
+    if (s == 'ditolak') return 'Ditolak';
+    return rawStatus;
+  }
+
+  Color _statusColor(String label) {
+    switch (label) {
+      case 'Baru':
+        return Colors.orange;
+      case 'Diproses':
+        return Colors.blue;
+      case 'Selesai':
+        return Colors.green;
+      case 'Ditolak':
+        return Colors.red;
+      default:
+        return kDarkGreen;
     }
   }
 
-  Color _statusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.baru:
-        return Colors.orange;
-      case OrderStatus.diproses:
-        return Colors.blue;
-      case OrderStatus.selesai:
-        return Colors.green;
-      case OrderStatus.ditolak:
-        return Colors.red;
+  Future<void> _updateOrderStatus(
+    BuildContext context,
+    String docId,
+    String firestoreStatus,
+    String feedbackText,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('orders').doc(docId).update({
+        'status': firestoreStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(feedbackText), backgroundColor: kDarkGreen),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memperbarui pesanan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
+  }
+
+  String _buildProductsSummary(Map<String, dynamic> data) {
+    final rawItems = data['items'];
+    if (rawItems is List && rawItems.isNotEmpty) {
+      return rawItems
+          .map((e) {
+            if (e is Map) {
+              final name = (e['name'] ?? e['description'] ?? 'Produk')
+                  .toString();
+              final qty = e['quantity'] ?? e['qty'] ?? 1;
+              return '$name (x$qty)';
+            }
+            return e.toString();
+          })
+          .join(', ');
+    }
+    return (data['produk'] ?? 'Produk Pesanan').toString();
   }
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -53,10 +103,36 @@ class SellerOrdersPage extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: ValueListenableBuilder<List<SellerOrder>>(
-          valueListenable: SellerAccountState.instance.myOrders,
-          builder: (context, orders, _) {
-            if (orders.isEmpty) {
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(color: kDarkGreen),
+              );
+            }
+
+            final allDocs = snapshot.data?.docs ?? [];
+            final myOrders =
+                allDocs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>? ?? {};
+                  final sellerId = (data['sellerId'] ?? data['tenantId'] ?? '')
+                      .toString();
+                  return sellerId == uid;
+                }).toList()..sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>? ?? {};
+                  final bData = b.data() as Map<String, dynamic>? ?? {};
+                  final aTime = aData['createdAt'] is Timestamp
+                      ? (aData['createdAt'] as Timestamp).toDate()
+                      : DateTime(2000);
+                  final bTime = bData['createdAt'] is Timestamp
+                      ? (bData['createdAt'] as Timestamp).toDate()
+                      : DateTime(2000);
+                  return bTime.compareTo(aTime);
+                });
+
+            if (myOrders.isEmpty) {
               return Center(
                 child: Text(
                   'Belum ada pesanan masuk.',
@@ -67,11 +143,31 @@ class SellerOrdersPage extends StatelessWidget {
                 ),
               );
             }
+
             return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: orders.length,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+              itemCount: myOrders.length,
               itemBuilder: (context, index) {
-                final order = orders[index];
+                final doc = myOrders[index];
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+
+                final buyerName =
+                    (data['buyerName'] ?? data['pembeli'] ?? 'Pembeli')
+                        .toString();
+                final buyerAddress = (data['buyerAddress'] ?? '').toString();
+                final paymentMethod = (data['paymentMethod'] ?? '').toString();
+                final rawStatus = (data['status'] ?? 'Perlu dibayar')
+                    .toString();
+                final statusLabel = _sellerStatusLabel(rawStatus);
+                final statusColor = _statusColor(statusLabel);
+
+                final rawTotal = data['total'] ?? data['totalPrice'] ?? 0;
+                final total = rawTotal is int
+                    ? rawTotal
+                    : int.tryParse(rawTotal.toString()) ?? 0;
+
+                final produkSummary = _buildProductsSummary(data);
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(14),
@@ -89,7 +185,7 @@ class SellerOrdersPage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              order.pembeli,
+                              buyerName,
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -103,17 +199,15 @@ class SellerOrdersPage extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(
-                                order.status,
-                              ).withValues(alpha: 0.12),
+                              color: statusColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              _statusLabel(order.status),
+                              statusLabel,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: _statusColor(order.status),
+                                color: statusColor,
                               ),
                             ),
                           ),
@@ -121,32 +215,59 @@ class SellerOrdersPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        order.produk,
+                        produkSummary,
                         style: const TextStyle(
                           fontSize: 13,
                           color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Rp${_formatPrice(order.total)}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: kDarkGreen,
+                      if (buyerAddress.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Alamat: $buyerAddress',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: kDarkGreen.withValues(alpha: 0.65),
+                          ),
                         ),
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Rp${_formatPrice(total)}',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                          if (paymentMethod.isNotEmpty)
+                            Text(
+                              paymentMethod,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: kDarkGreen.withValues(alpha: 0.65),
+                              ),
+                            ),
+                        ],
                       ),
-                      if (order.status == OrderStatus.baru) ...[
+                      if (statusLabel == 'Baru') ...[
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () => SellerAccountState.instance
-                                    .updateOrderStatus(
-                                      order.id,
-                                      OrderStatus.ditolak,
-                                    ),
+                                onPressed: () => _updateOrderStatus(
+                                  context,
+                                  doc.id,
+                                  'Ditolak',
+                                  'Pesanan ditolak',
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.red,
                                   side: const BorderSide(color: Colors.red),
@@ -160,11 +281,12 @@ class SellerOrdersPage extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: () => SellerAccountState.instance
-                                    .updateOrderStatus(
-                                      order.id,
-                                      OrderStatus.diproses,
-                                    ),
+                                onPressed: () => _updateOrderStatus(
+                                  context,
+                                  doc.id,
+                                  'Akan Diterima',
+                                  'Pesanan diterima & sedang diproses',
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: kDarkGreen,
                                   foregroundColor: Colors.white,
@@ -178,16 +300,17 @@ class SellerOrdersPage extends StatelessWidget {
                             ),
                           ],
                         ),
-                      ] else if (order.status == OrderStatus.diproses) ...[
+                      ] else if (statusLabel == 'Diproses') ...[
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () => SellerAccountState.instance
-                                .updateOrderStatus(
-                                  order.id,
-                                  OrderStatus.selesai,
-                                ),
+                            onPressed: () => _updateOrderStatus(
+                              context,
+                              doc.id,
+                              'Pesanan Selesai',
+                              'Pesanan ditandai selesai',
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kDarkGreen,
                               foregroundColor: Colors.white,

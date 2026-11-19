@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
@@ -49,6 +51,7 @@ class _CartPageState extends State<CartPage> {
           storeName: item.storeName,
           description: item.description,
           price: item.price,
+          image: item.image ?? '',
         ),
       );
     }
@@ -240,6 +243,51 @@ class _CartItemTile extends StatelessWidget {
     required this.onQtyChanged,
   });
 
+  Widget _buildImage(String? imageSource) {
+    final fallback = Icon(
+      Icons.image_outlined,
+      color: kDarkGreen.withValues(alpha: 0.4),
+    );
+
+    if (imageSource == null || imageSource.isEmpty) return fallback;
+
+    if (imageSource.startsWith('assets/')) {
+      return Image.asset(
+        imageSource,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+
+    try {
+      final cleanBase64 = imageSource.contains(',')
+          ? imageSource.split(',').last
+          : imageSource;
+      return Image.memory(
+        base64Decode(cleanBase64),
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -282,21 +330,7 @@ class _CartItemTile extends StatelessWidget {
                   color: kLightGreen,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: (item.image != null && item.image!.isNotEmpty)
-                    ? Image.asset(
-                        item.image!,
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.image_outlined,
-                          color: kDarkGreen.withValues(alpha: 0.4),
-                        ),
-                      )
-                    : Icon(
-                        Icons.image_outlined,
-                        color: kDarkGreen.withValues(alpha: 0.4),
-                      ),
+                child: _buildImage(item.image),
               ),
               const SizedBox(width: 12),
               Expanded(
