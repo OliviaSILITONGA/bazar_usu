@@ -1,21 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'chat_detail_page.dart';
-import 'main_navigation_page.dart';
-
 import '../constants.dart';
-
-class ChatItemData {
-  final String name;
-  final String lastMessage;
-  final String time;
-
-  const ChatItemData({
-    required this.name,
-    required this.lastMessage,
-    required this.time,
-  });
-}
+import '../services/chat_service.dart';
+import 'chat_detail_page.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -25,70 +12,19 @@ class ChatListPage extends StatefulWidget {
 }
 
 class _ChatListPageState extends State<ChatListPage> {
-  static const List<ChatItemData> _allChats = [
-    ChatItemData(
-      name: 'KMK Ilmu Komputer',
-      lastMessage: 'Pesanannya dah sampai...',
-      time: '1mnt',
-    ),
-    ChatItemData(
-      name: 'KMK Teknik Kimia',
-      lastMessage: 'Pesanannya dah sampai...',
-      time: '1mnt',
-    ),
-    ChatItemData(
-      name: 'Yana',
-      lastMessage: 'Pesanan dengan nomor resi...',
-      time: '2hari',
-    ),
-    ChatItemData(
-      name: 'UKM Paduan Suara ULOS',
-      lastMessage: 'Pesanannya dah sampai...',
-      time: '1mnt',
-    ),
-    ChatItemData(
-      name: 'UKM AISEC',
-      lastMessage: 'Pesanan dengan nomor resi...',
-      time: '2hari',
-    ),
-    ChatItemData(
-      name: 'Olivia',
-      lastMessage: 'Pesanannya dah sampai...',
-      time: '1mnt',
-    ),
-    ChatItemData(
-      name: 'SILI TONGA',
-      lastMessage: 'Pesanan dengan nomor resi...',
-      time: '2hari',
-    ),
+  static const List<String> _defaultContacts = [
+    'KMK Ilmu Komputer',
+    'KMK Teknik Kimia',
+    'Yana',
+    'UKM Paduan Suara ULOS',
+    'UKM AISEC',
+    'Olivia',
+    'SILI TONGA',
   ];
 
   final TextEditingController _searchController = TextEditingController();
-  List<ChatItemData> _filteredChats = [];
   bool _isSearching = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredChats = _allChats; // Inisialisasi awal menampilkan semua chat
-  }
-
-  void _filterChats(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        _filteredChats = _allChats;
-      } else {
-        _filteredChats = _allChats.where((chat) {
-          final nameLower = chat.name.toLowerCase();
-          final msgLower = chat.lastMessage.toLowerCase();
-          final searchLower = query.toLowerCase();
-
-          return nameLower.contains(searchLower) ||
-              msgLower.contains(searchLower);
-        }).toList();
-      }
-    });
-  }
+  String _query = '';
 
   @override
   void dispose() {
@@ -96,33 +32,80 @@ class _ChatListPageState extends State<ChatListPage> {
     super.dispose();
   }
 
+  List<ChatThreadModel> _mergeWithDefaults(ChatThreadList dbThreads) {
+    final mapByTitle = <String, ChatThreadModel>{};
+    for (final t in dbThreads) {
+      mapByTitle[t.title.trim().toLowerCase()] = t;
+    }
+
+    final result = <ChatThreadModel>[...dbThreads];
+    for (final name in _defaultContacts) {
+      final key = name.trim().toLowerCase();
+      if (!mapByTitle.containsKey(key)) {
+        result.add(
+          ChatThreadModel(
+            id: ChatService.instance.buildThreadId(name),
+            title: name,
+            lastMessage: 'Ketuk untuk mulai chat',
+            lastSenderId: '',
+            updatedAt: DateTime(2000),
+            unreadCounts: const {},
+            participants: [ChatService.instance.currentUserId],
+          ),
+        );
+      }
+    }
+
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? result
+        : result.where((t) {
+            return t.title.toLowerCase().contains(q) ||
+                t.lastMessage.toLowerCase().contains(q);
+          }).toList();
+
+    filtered.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final myId = ChatService.instance.currentUserId;
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // Header dengan fungsionalitas Toggle Search Bar
             _ChatListHeader(
               isSearching: _isSearching,
               searchController: _searchController,
-              onSearchChanged: _filterChats,
+              onSearchChanged: (v) => setState(() => _query = v),
               onToggleSearch: () {
                 setState(() {
                   _isSearching = !_isSearching;
                   if (!_isSearching) {
+                    _query = '';
                     _searchController.clear();
-                    _filteredChats = _allChats;
                   }
                 });
               },
             ),
-
-            // Menampilkan daftar chat atau tampilan kosong jika tidak ditemukan
             Expanded(
-              child: _filteredChats.isEmpty
-                  ? Center(
+              child: StreamBuilder<ChatThreadList>(
+                stream: ChatService.instance.threadsStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final threads = _mergeWithDefaults(snapshot.data ?? []);
+
+                  if (threads.isEmpty) {
+                    return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -150,31 +133,51 @@ class _ChatListPageState extends State<ChatListPage> {
                           ),
                         ],
                       ),
-                    )
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemCount: _filteredChats.length,
-                      separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        color: kDarkGreen.withValues(alpha: 0.1),
-                        indent: 80,
-                      ),
-                      itemBuilder: (context, index) {
-                        final chat = _filteredChats[index];
-                        return _ChatListTile(
-                          data: chat,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ChatDetailPage(contactName: chat.name),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: threads.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: kDarkGreen.withValues(alpha: 0.1),
+                      indent: 80,
                     ),
+                    itemBuilder: (context, index) {
+                      final thread = threads[index];
+                      final hasUnread = thread.unreadFor(myId) > 0;
+                      final hasHistory = thread.updatedAt.year > 2000;
+                      final subtitle = hasHistory
+                          ? (thread.lastMessage.isEmpty
+                                    ? 'Belum ada pesan'
+                                    : thread.lastMessage) +
+                                ' · ' +
+                                ChatService.instance.formatRelativeTime(
+                                  thread.updatedAt,
+                                )
+                          : thread.lastMessage;
+
+                      return _ChatListTile(
+                        title: thread.title,
+                        subtitle: subtitle,
+                        hasUnread: hasUnread,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatDetailPage(
+                                contactName: thread.title,
+                                threadId: thread.id,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -183,7 +186,6 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 }
 
-// ==================== HEADER ====================
 class _ChatListHeader extends StatelessWidget {
   final bool isSearching;
   final TextEditingController searchController;
@@ -241,7 +243,7 @@ class _ChatListHeader extends StatelessWidget {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const SizedBox(width: 48), // Penyeimbang tata letak judul
+                  const SizedBox(width: 48),
                   const Text(
                     'Kontak Masuk',
                     style: TextStyle(
@@ -261,12 +263,18 @@ class _ChatListHeader extends StatelessWidget {
   }
 }
 
-// ==================== ITEM KONTAK ====================
 class _ChatListTile extends StatelessWidget {
-  final ChatItemData data;
+  final String title;
+  final String subtitle;
+  final bool hasUnread;
   final VoidCallback onTap;
 
-  const _ChatListTile({required this.data, required this.onTap});
+  const _ChatListTile({
+    required this.title,
+    required this.subtitle,
+    required this.hasUnread,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -290,19 +298,24 @@ class _ChatListTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    data.name,
-                    style: const TextStyle(
+                    title,
+                    style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: hasUnread ? FontWeight.w800 : FontWeight.bold,
                       color: kDarkGreen,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${data.lastMessage} . ${data.time}',
+                    subtitle,
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: kDarkGreen.withValues(alpha: 0.6),
+                      fontWeight: hasUnread
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: kDarkGreen.withValues(
+                        alpha: hasUnread ? 0.85 : 0.6,
+                      ),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/seller_chat_data.dart';
+import '../services/chat_service.dart';
 import 'seller_chat_room_page.dart';
 
 class SellerChatListPage extends StatefulWidget {
@@ -22,27 +22,6 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
     super.dispose();
   }
 
-  // Kontak yang sudah difilter & diurutkan dari pesan terbaru
-  List<SellerChatContact> get _contacts {
-    final q = _query.trim().toLowerCase();
-    final list = sellerChatContacts
-        .where((c) => c.name.toLowerCase().contains(q))
-        .toList();
-    final fallback = DateTime(2000);
-    list.sort(
-      (a, b) => (b.last?.time ?? fallback).compareTo(a.last?.time ?? fallback),
-    );
-    return list;
-  }
-
-  Future<void> _openRoom(SellerChatContact contact) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => SellerChatRoomPage(contact: contact)),
-    );
-    if (mounted) setState(() {}); // segarkan preview & badge
-  }
-
   void _toggleSearch() {
     setState(() {
       _searching = !_searching;
@@ -55,7 +34,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = _contacts;
+    final myId = ChatService.instance.currentUserId;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -64,15 +43,47 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
           children: [
             _buildHeader(),
             Expanded(
-              child: contacts.isEmpty
-                  ? _buildEmpty()
-                  : ListView.builder(
-                      itemCount: contacts.length,
-                      itemBuilder: (context, i) => _ContactTile(
-                        contact: contacts[i],
-                        onTap: () => _openRoom(contacts[i]),
-                      ),
+              child: StreamBuilder<ChatThreadList>(
+                stream: ChatService.instance.threadsStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final q = _query.trim().toLowerCase();
+                  final contacts = (snapshot.data ?? []).where((c) {
+                    if (q.isEmpty) return true;
+                    return c.title.toLowerCase().contains(q) ||
+                        c.lastMessage.toLowerCase().contains(q);
+                  }).toList();
+
+                  if (contacts.isEmpty) {
+                    return _buildEmpty();
+                  }
+
+                  return ListView.builder(
+                    itemCount: contacts.length,
+                    itemBuilder: (context, i) => _ContactTile(
+                      contact: contacts[i],
+                      currentUserId: myId,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SellerChatRoomPage(
+                              threadId: contacts[i].id,
+                              contactName: contacts[i].title,
+                            ),
+                          ),
+                        );
+                      },
                     ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -176,7 +187,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
           const SizedBox(height: 10),
           Text(
             searching
-                ? 'Tidak ada pembeli bernama "$_query"'
+                ? 'Tidak ada pembeli bernama ' + _query
                 : 'Belum ada pesan masuk',
             style: TextStyle(
               fontSize: 13,
@@ -190,14 +201,21 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
 }
 
 class _ContactTile extends StatelessWidget {
-  final SellerChatContact contact;
+  final ChatThreadModel contact;
+  final String currentUserId;
   final VoidCallback onTap;
-  const _ContactTile({required this.contact, required this.onTap});
+
+  const _ContactTile({
+    required this.contact,
+    required this.currentUserId,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final last = contact.last;
-    final hasUnread = contact.unread > 0;
+    final unread = contact.unreadFor(currentUserId);
+    final hasUnread = unread > 0;
+    final isFromMe = contact.lastSenderId == currentUserId;
 
     return Column(
       children: [
@@ -222,7 +240,7 @@ class _ContactTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        contact.name,
+                        contact.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -233,9 +251,9 @@ class _ContactTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        last == null
+                        contact.lastMessage.isEmpty
                             ? 'Belum ada pesan'
-                            : '${last.fromMe ? 'Kamu: ' : ''}${last.text}',
+                            : (isFromMe ? 'Kamu: ' : '') + contact.lastMessage,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -256,7 +274,11 @@ class _ContactTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      last == null ? '' : formatChatTime(last.time),
+                      contact.lastMessage.isEmpty
+                          ? ''
+                          : ChatService.instance.formatRelativeTime(
+                              contact.updatedAt,
+                            ),
                       style: TextStyle(
                         fontSize: 11.5,
                         color: kDarkGreen.withValues(alpha: 0.5),
@@ -275,7 +297,7 @@ class _ContactTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${contact.unread}',
+                          unread.toString(),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 11,

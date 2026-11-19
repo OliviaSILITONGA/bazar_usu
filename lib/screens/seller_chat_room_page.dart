@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
-import '../services/seller_chat_data.dart';
+import '../services/chat_service.dart';
 
 class SellerChatRoomPage extends StatefulWidget {
-  final SellerChatContact contact;
-  const SellerChatRoomPage({super.key, required this.contact});
+  final String contactName;
+  final String? threadId;
+  final String? peerUserId;
+
+  const SellerChatRoomPage({
+    super.key,
+    required this.contactName,
+    this.threadId,
+    this.peerUserId,
+  });
 
   @override
   State<SellerChatRoomPage> createState() => _SellerChatRoomPageState();
@@ -13,18 +21,33 @@ class SellerChatRoomPage extends StatefulWidget {
 
 class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
   final _messageController = TextEditingController();
+  late final String _threadId;
+  bool _isSending = false;
 
   static const _quickReplies = [
-    'Pesanan sedang diproses 🍳',
-    'Pesanan siap diambil ✅',
-    'Terima kasih sudah memesan! 😊',
+    'Pesanan sedang diproses',
+    'Pesanan siap diambil',
+    'Terima kasih sudah memesan!',
     'Maaf, stok sedang habis',
   ];
 
   @override
   void initState() {
     super.initState();
-    widget.contact.unread = 0; // pesan dianggap sudah dibaca
+    _threadId = (widget.threadId != null && widget.threadId!.trim().isNotEmpty)
+        ? widget.threadId!.trim()
+        : ChatService.instance.buildThreadId(widget.contactName);
+    _initRoom();
+  }
+
+  Future<void> _initRoom() async {
+    try {
+      await ChatService.instance.ensureThread(
+        contactName: widget.contactName,
+        peerUserId: widget.peerUserId,
+      );
+      await ChatService.instance.markAsRead(_threadId);
+    } catch (_) {}
   }
 
   @override
@@ -33,27 +56,48 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
     super.dispose();
   }
 
-  void _send(String text) {
+  Future<void> _send(String text) async {
+    if (_isSending) return;
     final clean = text.trim();
     if (clean.isEmpty) return;
-    setState(() {
-      widget.contact.messages.add(
-        SellerChatMessage(text: clean, fromMe: true, time: DateTime.now()),
+
+    setState(() => _isSending = true);
+    if (text == _messageController.text) {
+      _messageController.clear();
+    }
+
+    try {
+      await ChatService.instance.sendMessage(
+        threadId: _threadId,
+        contactName: widget.contactName,
+        text: clean,
+        peerUserId: widget.peerUserId,
       );
-    });
-    _messageController.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengirim pesan: ' + e.toString()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final messages = widget.contact.messages;
+    final myId = ChatService.instance.currentUserId;
 
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // ===== Header =====
             Container(
               padding: const EdgeInsets.fromLTRB(4, 6, 16, 6),
               decoration: BoxDecoration(
@@ -81,7 +125,7 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      widget.contact.name,
+                      widget.contactName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -94,41 +138,58 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                 ],
               ),
             ),
-
-            // ===== Daftar pesan =====
             Expanded(
-              child: messages.isEmpty
-                  ? Center(
+              child: StreamBuilder<ChatMessageList>(
+                stream: ChatService.instance.messagesStream(_threadId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kDarkGreen),
+                    );
+                  }
+
+                  final messages = snapshot.data ?? [];
+                  if (messages.isEmpty) {
+                    return Center(
                       child: Text(
-                        'Mulai percakapan dengan ${widget.contact.name}',
+                        'Mulai percakapan dengan ' + widget.contactName,
                         style: TextStyle(
                           fontSize: 13,
                           color: kDarkGreen.withValues(alpha: 0.5),
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      reverse: true, // pesan terbaru selalu di bawah
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      itemCount: messages.length,
-                      itemBuilder: (context, i) {
-                        final m = messages[messages.length - 1 - i];
-                        return _MessageBubble(message: m);
-                      },
-                    ),
-            ),
+                    );
+                  }
 
-            // ===== Balasan cepat =====
+                  return ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    itemCount: messages.length,
+                    itemBuilder: (context, i) {
+                      final m = messages[messages.length - 1 - i];
+                      return _MessageBubble(
+                        text: m.text,
+                        clockText: ChatService.instance.formatClock(
+                          m.createdAt,
+                        ),
+                        mine: m.senderId == myId,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
             SizedBox(
               height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 itemCount: _quickReplies.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, i) => GestureDetector(
                   onTap: () => _send(_quickReplies[i]),
                   child: Container(
@@ -153,8 +214,6 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                 ),
               ),
             ),
-
-            // ===== Kolom ketik =====
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
               child: Row(
@@ -209,7 +268,9 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                     shape: const CircleBorder(),
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: () => _send(_messageController.text),
+                      onTap: _isSending
+                          ? null
+                          : () => _send(_messageController.text),
                       child: const Padding(
                         padding: EdgeInsets.all(12),
                         child: Icon(Icons.send, color: Colors.white, size: 20),
@@ -227,12 +288,18 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  final SellerChatMessage message;
-  const _MessageBubble({required this.message});
+  final String text;
+  final String clockText;
+  final bool mine;
+
+  const _MessageBubble({
+    required this.text,
+    required this.clockText,
+    required this.mine,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final mine = message.fromMe;
     final maxWidth = MediaQuery.of(context).size.width * 0.75;
 
     return Align(
@@ -260,7 +327,7 @@ class _MessageBubble extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                message.text,
+                text,
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.35,
@@ -270,7 +337,7 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              formatClock(message.time),
+              clockText,
               style: TextStyle(
                 fontSize: 10,
                 color: mine
