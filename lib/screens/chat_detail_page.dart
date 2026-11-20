@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../services/chat_service.dart';
+import 'store_detail_page.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String contactName;
@@ -21,10 +22,14 @@ class ChatDetailPage extends StatefulWidget {
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
   late String _threadId;
   String? _resolvedSellerId;
   bool _isSending = false;
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -59,6 +64,25 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
       await ChatService.instance.markAsRead(computedThreadId);
     } catch (_) {}
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchQuery = '';
+        _searchController.clear();
+      }
+    });
+  }
+
+  void _openStoreDetail() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StoreDetailPage(storeName: widget.contactName),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -127,6 +151,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void dispose() {
     _messageController.dispose();
+    _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -139,8 +164,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       backgroundColor: kBg,
       resizeToAvoidBottomInset: true,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(62),
-        child: _ChatDetailHeader(contactName: widget.contactName),
+        preferredSize: const Size.fromHeight(64),
+        child: _ChatDetailHeader(
+          contactName: widget.contactName,
+          isSearching: _isSearching,
+          searchController: _searchController,
+          onSearchChanged: (v) => setState(() => _searchQuery = v),
+          onToggleSearch: _toggleSearch,
+          onProfileTap: _openStoreDetail,
+        ),
       ),
       body: Column(
         children: [
@@ -159,11 +191,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         );
                       }
 
-                      final messages = snapshot.data ?? [];
+                      final allMessages = snapshot.data ?? [];
+                      final q = _searchQuery.trim().toLowerCase();
+                      final messages = q.isEmpty
+                          ? allMessages
+                          : allMessages
+                                .where((m) => m.text.toLowerCase().contains(q))
+                                .toList();
+
                       if (messages.isEmpty) {
                         return Center(
                           child: Text(
-                            'Mulai percakapan dengan ' + widget.contactName,
+                            q.isEmpty
+                                ? 'Mulai percakapan dengan ' +
+                                      widget.contactName
+                                : 'Pesan tidak ditemukan',
                             style: TextStyle(
                               fontSize: 13,
                               color: kDarkGreen.withValues(alpha: 0.5),
@@ -172,7 +214,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         );
                       }
 
-                      _scrollToBottom();
+                      if (q.isEmpty) {
+                        _scrollToBottom();
+                      }
 
                       return ListView.builder(
                         controller: _scrollController,
@@ -187,6 +231,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                               msg.createdAt,
                             ),
                             isMe: isMe,
+                            isRead: msg.isRead,
                           );
                         },
                       );
@@ -206,7 +251,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
 class _ChatDetailHeader extends StatelessWidget {
   final String contactName;
-  const _ChatDetailHeader({required this.contactName});
+  final bool isSearching;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onToggleSearch;
+  final VoidCallback onProfileTap;
+
+  const _ChatDetailHeader({
+    required this.contactName,
+    required this.isSearching,
+    required this.searchController,
+    required this.onSearchChanged,
+    required this.onToggleSearch,
+    required this.onProfileTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -215,53 +273,122 @@ class _ChatDetailHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: kLightGreen,
-                child: Icon(
-                  Icons.person,
-                  color: kDarkGreen.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: isSearching
+              ? Row(
                   children: [
-                    Text(
-                      contactName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    IconButton(
+                      onPressed: onToggleSearch,
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                    Text(
-                      'ketuk ini untuk melihat profil',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        fontSize: 11,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        onChanged: onSearchChanged,
+                        style: const TextStyle(fontSize: 14, color: kDarkGreen),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          hintText: 'Cari pesan di obrolan...',
+                          hintStyle: TextStyle(
+                            color: kDarkGreen.withValues(alpha: 0.5),
+                            fontSize: 13,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      onPressed: onToggleSearch,
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: onProfileTap,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: kLightGreen,
+                                child: Icon(
+                                  Icons.person,
+                                  color: kDarkGreen.withValues(alpha: 0.6),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      contactName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      'ketuk ini untuk melihat profil',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.75,
+                                        ),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onToggleSearch,
+                      icon: const Icon(
+                        Icons.search,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
-              ),
-              const Icon(Icons.search, color: Colors.white, size: 22),
-            ],
-          ),
         ),
       ),
     );
@@ -272,11 +399,13 @@ class _ChatBubble extends StatelessWidget {
   final String text;
   final String timeText;
   final bool isMe;
+  final bool isRead;
 
   const _ChatBubble({
     required this.text,
     required this.timeText,
     required this.isMe,
+    required this.isRead,
   });
 
   @override
@@ -316,14 +445,29 @@ class _ChatBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              timeText,
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe
-                    ? Colors.white.withValues(alpha: 0.7)
-                    : kDarkGreen.withValues(alpha: 0.45),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  timeText,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.7)
+                        : kDarkGreen.withValues(alpha: 0.45),
+                  ),
+                ),
+                if (isMe) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    isRead ? Icons.done_all : Icons.done,
+                    size: 13,
+                    color: isRead
+                        ? const Color(0xFF7BE3FF)
+                        : Colors.white.withValues(alpha: 0.75),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

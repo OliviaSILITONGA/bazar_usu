@@ -217,6 +217,7 @@ class _ContactTile extends StatelessWidget {
     final unread = contact.unreadFor(currentUserId);
     final hasUnread = unread > 0;
     final isFromMe = contact.lastSenderId == currentUserId;
+    final isLastRead = contact.isLastMessageReadByPeer(currentUserId);
 
     return Column(
       children: [
@@ -251,21 +252,37 @@ class _ContactTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        contact.lastMessage.isEmpty
-                            ? 'Belum ada pesan'
-                            : (isFromMe ? 'Kamu: ' : '') + contact.lastMessage,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: hasUnread
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                          color: kDarkGreen.withValues(
-                            alpha: hasUnread ? 0.85 : 0.55,
+                      Row(
+                        children: [
+                          if (isFromMe && contact.lastMessage.isNotEmpty) ...[
+                            Icon(
+                              isLastRead ? Icons.done_all : Icons.done,
+                              size: 15,
+                              color: isLastRead
+                                  ? const Color(0xFF1D9BF0)
+                                  : kDarkGreen.withValues(alpha: 0.55),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              contact.lastMessage.isEmpty
+                                  ? 'Belum ada pesan'
+                                  : contact.lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: kDarkGreen.withValues(
+                                  alpha: hasUnread ? 0.85 : 0.55,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),

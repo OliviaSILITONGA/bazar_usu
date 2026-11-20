@@ -8,6 +8,7 @@ class ChatMessageModel {
   final String senderRole;
   final String text;
   final DateTime createdAt;
+  final bool isRead;
 
   const ChatMessageModel({
     required this.id,
@@ -16,6 +17,7 @@ class ChatMessageModel {
     this.senderRole = 'buyer',
     required this.text,
     required this.createdAt,
+    this.isRead = false,
   });
 
   factory ChatMessageModel.fromDoc(DocumentSnapshot doc) {
@@ -30,6 +32,7 @@ class ChatMessageModel {
       senderRole: (data['senderRole'] ?? 'buyer').toString(),
       text: (data['text'] ?? '').toString(),
       createdAt: dt,
+      isRead: data['isRead'] == true,
     );
   }
 }
@@ -116,6 +119,13 @@ class ChatThreadModel {
   }
 
   int unreadFor(String userId) => unreadCounts[userId] ?? 0;
+
+  bool isLastMessageReadByPeer(String currentUserId) {
+    if (lastSenderId != currentUserId) return false;
+    final peerId = currentUserId == buyerId ? sellerId : buyerId;
+    if (peerId.isEmpty) return false;
+    return (unreadCounts[peerId] ?? 0) == 0;
+  }
 }
 
 typedef ChatMessageList = List<ChatMessageModel>;
@@ -172,6 +182,8 @@ class ChatService {
     return currentUserName;
   }
 
+  /// Mencari UID akun penjual berdasarkan nama toko / danus di Firestore.
+  /// Mengecek koleksi `users` dan `tenants` agar cocok meskipun nama toko ditulis berbeda kapitalisasi.
   Future<String> resolveSellerIdByStoreName(String storeName) async {
     final cleanStore = storeName.trim();
     if (cleanStore.isEmpty) return 'seller_unknown';
@@ -179,25 +191,7 @@ class ChatService {
     final lowerStore = cleanStore.toLowerCase();
 
     try {
-      final byStoreName = await _db
-          .collection('users')
-          .where('storeName', isEqualTo: cleanStore)
-          .limit(1)
-          .get();
-      if (byStoreName.docs.isNotEmpty) {
-        return byStoreName.docs.first.id;
-      }
-
-      final byNamaToko = await _db
-          .collection('users')
-          .where('namaToko', isEqualTo: cleanStore)
-          .limit(1)
-          .get();
-      if (byNamaToko.docs.isNotEmpty) {
-        return byNamaToko.docs.first.id;
-      }
-
-      final snapshot = await _db.collection('users').limit(100).get();
+      final snapshot = await _db.collection('users').limit(200).get();
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final s1 = (data['storeName'] ?? '').toString().trim().toLowerCase();
@@ -210,17 +204,34 @@ class ChatService {
           return doc.id;
         }
       }
+
+      // Fallback cek koleksi `tenants` jika ada field ownerId / userId / uid
+      final tenantsSnap = await _db.collection('tenants').limit(200).get();
+      for (final doc in tenantsSnap.docs) {
+        final data = doc.data();
+        final tName = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (tName == lowerStore) {
+          final ownerId =
+              (data['ownerId'] ?? data['userId'] ?? data['uid'] ?? '')
+                  .toString()
+                  .trim();
+          if (ownerId.isNotEmpty) return ownerId;
+        }
+      }
     } catch (_) {}
 
     return 'seller_' + _slug(cleanStore);
   }
 
-  /// Stream thread untuk halaman chat PEMBELI (hanya thread tempat user ini adalah buyer).
+  /// Stream thread untuk halaman chat PEMBELI.
   Stream<ChatThreadList> buyerThreadsStream() {
     final uid = currentUserId;
     return _db
         .collection('chats')
-        .where('buyerId', isEqualTo: uid)
+        .where('participants', arrayContains: uid)
         .snapshots()
         .map((snapshot) {
           final list = snapshot.docs
@@ -243,38 +254,81 @@ class ChatService {
         });
   }
 
-  /// Stream thread untuk halaman chat PENJUAL (hanya thread milik penjual ini yang punya pesan dari pembeli).
-  Stream<ChatThreadList> sellerThreadsStream() {
+  /// Stream thread untuk halaman chat PENJUAL.
+  /// Menggabungkan query berdasarkan `sellerId == uid` dan `participants arrayContains uid`
+  /// (dengan fallback slug nama toko jika sellerId lama belum memakai UID akun).
+  Stream<ChatThreadList> sellerThreadsStream() async* {
     final uid = currentUserId;
-    return _db
-        .collection('chats')
-        .where('sellerId', isEqualTo: uid)
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs
-              .where((doc) {
-                final data = doc.data();
-                final sId = (data['sellerId'] ?? '').toString();
-                final bId = (data['buyerId'] ?? '').toString();
-                final hasBuyerMsg = data['hasBuyerMessage'] == true;
-                final lastMsg = (data['lastMessage'] ?? '').toString().trim();
-                // Jangan tampilkan akun penjual sendiri sebagai "pembeli"
-                return sId == uid &&
-                    bId.isNotEmpty &&
-                    bId != uid &&
-                    (hasBuyerMsg || lastMsg.isNotEmpty);
-              })
-              .map(
-                (doc) => ChatThreadModel.fromDoc(
-                  doc,
-                  currentUserId: uid,
-                  isSellerView: true,
-                ),
-              )
-              .toList();
-          list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-          return list;
-        });
+    final storeKeys = <String>{uid};
+
+    try {
+      final userDoc = await _db.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final uData = userDoc.data() ?? {};
+        for (final key in [
+          uData['storeName'],
+          uData['namaToko'],
+          uData['nama'],
+          uData['name'],
+        ]) {
+          final raw = (key ?? '').toString().trim();
+          if (raw.isNotEmpty) {
+            storeKeys.add('seller_' + _slug(raw));
+          }
+        }
+      }
+    } catch (_) {}
+
+    await for (final snapshot
+        in _db
+            .collection('chats')
+            .where('participants', arrayContains: uid)
+            .snapshots()) {
+      final byId = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final doc in snapshot.docs) {
+        byId[doc.id] = doc;
+      }
+
+      // Ambil juga dokumen lama yang sellerId-nya masih memakai slug nama toko
+      try {
+        for (final legacySellerId in storeKeys) {
+          if (legacySellerId == uid) continue;
+          final legacySnap = await _db
+              .collection('chats')
+              .where('sellerId', isEqualTo: legacySellerId)
+              .get();
+          for (final doc in legacySnap.docs) {
+            byId[doc.id] = doc;
+          }
+        }
+      } catch (_) {}
+
+      final list = byId.values
+          .where((doc) {
+            final data = doc.data() ?? {};
+            final sId = (data['sellerId'] ?? '').toString().trim();
+            final bId = (data['buyerId'] ?? '').toString().trim();
+            final hasBuyerMsg = data['hasBuyerMessage'] == true;
+            final lastMsg = (data['lastMessage'] ?? '').toString().trim();
+
+            final matchesSeller = sId == uid || storeKeys.contains(sId);
+            return matchesSeller &&
+                bId.isNotEmpty &&
+                bId != uid &&
+                (hasBuyerMsg || lastMsg.isNotEmpty);
+          })
+          .map(
+            (doc) => ChatThreadModel.fromDoc(
+              doc,
+              currentUserId: uid,
+              isSellerView: true,
+            ),
+          )
+          .toList();
+
+      list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      yield list;
+    }
   }
 
   Stream<ChatMessageList> messagesStream(String threadId) {
@@ -325,6 +379,7 @@ class ChatService {
       'senderRole': 'buyer',
       'text': cleanText,
       'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
     });
 
     batch.set(threadRef, {
@@ -339,8 +394,7 @@ class ChatService {
       'lastSenderId': uid,
       'lastSenderRole': 'buyer',
       'updatedAt': FieldValue.serverTimestamp(),
-      'unreadCounts.' + uid: 0,
-      'unreadCounts.' + resolvedSellerId: FieldValue.increment(1),
+      'unreadCounts': {uid: 0, resolvedSellerId: FieldValue.increment(1)},
     }, SetOptions(merge: true));
 
     await batch.commit();
@@ -369,24 +423,27 @@ class ChatService {
       'senderRole': 'seller',
       'text': cleanText,
       'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
     });
 
+    final unreadMap = <String, dynamic>{uid: 0};
     final updateData = <String, dynamic>{
       'sellerId': uid,
       'sellerName': sellerDisplayName,
       'buyerName': buyerName.trim().isEmpty ? 'Pembeli' : buyerName.trim(),
+      'participants': FieldValue.arrayUnion([uid]),
       'lastMessage': cleanText,
       'lastSenderId': uid,
       'lastSenderRole': 'seller',
       'updatedAt': FieldValue.serverTimestamp(),
-      'unreadCounts.' + uid: 0,
     };
 
     if (buyerId != null && buyerId.trim().isNotEmpty) {
       updateData['buyerId'] = buyerId.trim();
       updateData['participants'] = FieldValue.arrayUnion([uid, buyerId.trim()]);
-      updateData['unreadCounts.' + buyerId.trim()] = FieldValue.increment(1);
+      unreadMap[buyerId.trim()] = FieldValue.increment(1);
     }
+    updateData['unreadCounts'] = unreadMap;
 
     batch.set(threadRef, updateData, SetOptions(merge: true));
     await batch.commit();
@@ -394,9 +451,28 @@ class ChatService {
 
   Future<void> markAsRead(String threadId) async {
     if (threadId.trim().isEmpty) return;
+    final uid = currentUserId;
     await _db.collection('chats').doc(threadId.trim()).set({
-      'unreadCounts': {currentUserId: 0},
+      'unreadCounts': {uid: 0},
     }, SetOptions(merge: true));
+
+    try {
+      final msgs = await _db
+          .collection('chats')
+          .doc(threadId.trim())
+          .collection('messages')
+          .where('senderId', isNotEqualTo: uid)
+          .get();
+      if (msgs.docs.isNotEmpty) {
+        final batch = _db.batch();
+        for (final doc in msgs.docs) {
+          if (doc.data()['isRead'] != true) {
+            batch.update(doc.reference, {'isRead': true});
+          }
+        }
+        await batch.commit();
+      }
+    } catch (_) {}
   }
 
   String formatRelativeTime(DateTime t) {

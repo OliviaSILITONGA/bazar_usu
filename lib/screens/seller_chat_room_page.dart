@@ -21,8 +21,11 @@ class SellerChatRoomPage extends StatefulWidget {
 
 class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
   final _messageController = TextEditingController();
+  final _searchController = TextEditingController();
   late final String _threadId;
   bool _isSending = false;
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   static const _quickReplies = [
     'Pesanan sedang diproses',
@@ -47,9 +50,20 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
     } catch (_) {}
   }
 
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchQuery = '';
+        _searchController.clear();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -96,44 +110,91 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(4, 6, 16, 6),
+              padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(
                   bottom: BorderSide(color: kDarkGreen.withValues(alpha: 0.1)),
                 ),
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                    color: kDarkGreen,
-                  ),
-                  CircleAvatar(
-                    radius: 19,
-                    backgroundColor: kLightGreen,
-                    child: Icon(
-                      Icons.person,
-                      size: 20,
-                      color: kDarkGreen.withValues(alpha: 0.5),
+              child: _isSearching
+                  ? Row(
+                      children: [
+                        IconButton(
+                          onPressed: _toggleSearch,
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          color: kDarkGreen,
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            onChanged: (v) => setState(() => _searchQuery = v),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: kDarkGreen,
+                            ),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              filled: true,
+                              fillColor: kBg,
+                              hintText: 'Cari pesan...',
+                              hintStyle: TextStyle(
+                                color: kDarkGreen.withValues(alpha: 0.5),
+                                fontSize: 13,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 9,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _toggleSearch,
+                          icon: const Icon(Icons.close, color: kDarkGreen),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          color: kDarkGreen,
+                        ),
+                        CircleAvatar(
+                          radius: 19,
+                          backgroundColor: kLightGreen,
+                          child: Icon(
+                            Icons.person,
+                            size: 20,
+                            color: kDarkGreen.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.contactName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _toggleSearch,
+                          icon: const Icon(Icons.search, color: kDarkGreen),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.contactName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
             Expanded(
               child: _threadId.isEmpty
@@ -157,11 +218,23 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                           );
                         }
 
-                        final messages = snapshot.data ?? [];
+                        final allMessages = snapshot.data ?? [];
+                        final q = _searchQuery.trim().toLowerCase();
+                        final messages = q.isEmpty
+                            ? allMessages
+                            : allMessages
+                                  .where(
+                                    (m) => m.text.toLowerCase().contains(q),
+                                  )
+                                  .toList();
+
                         if (messages.isEmpty) {
                           return Center(
                             child: Text(
-                              'Mulai percakapan dengan ' + widget.contactName,
+                              q.isEmpty
+                                  ? 'Mulai percakapan dengan ' +
+                                        widget.contactName
+                                  : 'Pesan tidak ditemukan',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: kDarkGreen.withValues(alpha: 0.5),
@@ -185,6 +258,7 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                                 m.createdAt,
                               ),
                               mine: m.senderId == myId,
+                              isRead: m.isRead,
                             );
                           },
                         );
@@ -299,11 +373,13 @@ class _MessageBubble extends StatelessWidget {
   final String text;
   final String clockText;
   final bool mine;
+  final bool isRead;
 
   const _MessageBubble({
     required this.text,
     required this.clockText,
     required this.mine,
+    required this.isRead,
   });
 
   @override
@@ -344,14 +420,29 @@ class _MessageBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              clockText,
-              style: TextStyle(
-                fontSize: 10,
-                color: mine
-                    ? Colors.white.withValues(alpha: 0.7)
-                    : kDarkGreen.withValues(alpha: 0.45),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  clockText,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: mine
+                        ? Colors.white.withValues(alpha: 0.7)
+                        : kDarkGreen.withValues(alpha: 0.45),
+                  ),
+                ),
+                if (mine) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    isRead ? Icons.done_all : Icons.done,
+                    size: 13,
+                    color: isRead
+                        ? const Color(0xFF7BE3FF)
+                        : Colors.white.withValues(alpha: 0.75),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

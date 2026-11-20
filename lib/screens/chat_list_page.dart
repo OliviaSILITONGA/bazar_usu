@@ -115,17 +115,19 @@ class _ChatListPageState extends State<ChatListPage> {
                     itemBuilder: (context, index) {
                       final thread = threads[index];
                       final hasUnread = thread.unreadFor(myId) > 0;
-                      final subtitle = thread.lastMessage.isEmpty
-                          ? 'Belum ada pesan'
-                          : thread.lastMessage +
-                                ' · ' +
-                                ChatService.instance.formatRelativeTime(
-                                  thread.updatedAt,
-                                );
+                      final isFromMe = thread.lastSenderId == myId;
+                      final isLastRead = thread.isLastMessageReadByPeer(myId);
 
                       return _ChatListTile(
                         title: thread.title,
-                        subtitle: subtitle,
+                        lastMessage: thread.lastMessage,
+                        timeText: thread.lastMessage.isEmpty
+                            ? ''
+                            : ChatService.instance.formatRelativeTime(
+                                thread.updatedAt,
+                              ),
+                        isFromMe: isFromMe,
+                        isLastRead: isLastRead,
                         hasUnread: hasUnread,
                         onTap: () {
                           Navigator.push(
@@ -231,13 +233,19 @@ class _ChatListHeader extends StatelessWidget {
 
 class _ChatListTile extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final String lastMessage;
+  final String timeText;
+  final bool isFromMe;
+  final bool isLastRead;
   final bool hasUnread;
   final VoidCallback onTap;
 
   const _ChatListTile({
     required this.title,
-    required this.subtitle,
+    required this.lastMessage,
+    required this.timeText,
+    required this.isFromMe,
+    required this.isLastRead,
     required this.hasUnread,
     required this.onTap,
   });
@@ -272,19 +280,39 @@ class _ChatListTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: hasUnread
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                      color: kDarkGreen.withValues(
-                        alpha: hasUnread ? 0.85 : 0.6,
+                  Row(
+                    children: [
+                      if (isFromMe && lastMessage.isNotEmpty) ...[
+                        Icon(
+                          isLastRead ? Icons.done_all : Icons.done,
+                          size: 15,
+                          color: isLastRead
+                              ? const Color(0xFF1D9BF0)
+                              : kDarkGreen.withValues(alpha: 0.55),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          lastMessage.isEmpty
+                              ? 'Belum ada pesan'
+                              : (timeText.isNotEmpty
+                                    ? '\$lastMessage · \$timeText'
+                                    : lastMessage),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: hasUnread
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: kDarkGreen.withValues(
+                              alpha: hasUnread ? 0.85 : 0.6,
+                            ),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    ],
                   ),
                 ],
               ),
