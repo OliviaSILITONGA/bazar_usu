@@ -22,7 +22,8 @@ class ChatDetailPage extends StatefulWidget {
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  late final String _threadId;
+  late String _threadId;
+  String? _resolvedSellerId;
   bool _isSending = false;
 
   @override
@@ -30,13 +31,33 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     super.initState();
     _threadId = (widget.threadId != null && widget.threadId!.trim().isNotEmpty)
         ? widget.threadId!.trim()
-        : ChatService.instance.buildThreadId(widget.contactName);
-    _markThreadRead();
+        : '';
+    _initBuyerThread();
   }
 
-  Future<void> _markThreadRead() async {
+  Future<void> _initBuyerThread() async {
     try {
-      await ChatService.instance.markAsRead(_threadId);
+      final sellerId =
+          (widget.peerUserId != null && widget.peerUserId!.trim().isNotEmpty)
+          ? widget.peerUserId!.trim()
+          : await ChatService.instance.resolveSellerIdByStoreName(
+              widget.contactName,
+            );
+      final computedThreadId = _threadId.isNotEmpty
+          ? _threadId
+          : ChatService.instance.buildBuyerSellerThreadId(
+              buyerId: ChatService.instance.currentUserId,
+              sellerKey: sellerId,
+            );
+
+      if (mounted) {
+        setState(() {
+          _resolvedSellerId = sellerId;
+          _threadId = computedThreadId;
+        });
+      }
+
+      await ChatService.instance.markAsRead(computedThreadId);
     } catch (_) {}
   }
 
@@ -61,18 +82,37 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     _messageController.clear();
 
     try {
-      await ChatService.instance.sendMessage(
-        threadId: _threadId,
-        contactName: widget.contactName,
+      final sellerId =
+          _resolvedSellerId ??
+          await ChatService.instance.resolveSellerIdByStoreName(
+            widget.contactName,
+          );
+      final activeThreadId = _threadId.isNotEmpty
+          ? _threadId
+          : ChatService.instance.buildBuyerSellerThreadId(
+              buyerId: ChatService.instance.currentUserId,
+              sellerKey: sellerId,
+            );
+
+      if (_threadId != activeThreadId && mounted) {
+        setState(() {
+          _resolvedSellerId = sellerId;
+          _threadId = activeThreadId;
+        });
+      }
+
+      await ChatService.instance.sendBuyerMessage(
+        sellerName: widget.contactName,
+        sellerId: sellerId,
+        threadId: activeThreadId,
         text: text,
-        peerUserId: widget.peerUserId,
       );
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim pesan: $e'),
+            content: Text('Gagal mengirim pesan: ' + e.toString()),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -105,47 +145,53 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<ChatMessageList>(
-              stream: ChatService.instance.messagesStream(_threadId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(
+            child: _threadId.isEmpty
+                ? const Center(
                     child: CircularProgressIndicator(color: kDarkGreen),
-                  );
-                }
+                  )
+                : StreamBuilder<ChatMessageList>(
+                    stream: ChatService.instance.messagesStream(_threadId),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: kDarkGreen),
+                        );
+                      }
 
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'Mulai percakapan dengan ${widget.contactName}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: kDarkGreen.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  );
-                }
+                      final messages = snapshot.data ?? [];
+                      if (messages.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'Mulai percakapan dengan ' + widget.contactName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: kDarkGreen.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        );
+                      }
 
-                _scrollToBottom();
+                      _scrollToBottom();
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMe = msg.senderId == myId;
-                    return _ChatBubble(
-                      text: msg.text,
-                      timeText: ChatService.instance.formatClock(msg.createdAt),
-                      isMe: isMe,
-                    );
-                  },
-                );
-              },
-            ),
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          final isMe = msg.senderId == myId;
+                          return _ChatBubble(
+                            text: msg.text,
+                            timeText: ChatService.instance.formatClock(
+                              msg.createdAt,
+                            ),
+                            isMe: isMe,
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
           _MessageInputBar(
             controller: _messageController,

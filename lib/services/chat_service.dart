@@ -5,6 +5,7 @@ class ChatMessageModel {
   final String id;
   final String senderId;
   final String senderName;
+  final String senderRole;
   final String text;
   final DateTime createdAt;
 
@@ -12,6 +13,7 @@ class ChatMessageModel {
     required this.id,
     required this.senderId,
     required this.senderName,
+    this.senderRole = 'buyer',
     required this.text,
     required this.createdAt,
   });
@@ -25,6 +27,7 @@ class ChatMessageModel {
       id: doc.id,
       senderId: (data['senderId'] ?? '').toString(),
       senderName: (data['senderName'] ?? '').toString(),
+      senderRole: (data['senderRole'] ?? 'buyer').toString(),
       text: (data['text'] ?? '').toString(),
       createdAt: dt,
     );
@@ -33,18 +36,28 @@ class ChatMessageModel {
 
 class ChatThreadModel {
   final String id;
+  final String sellerId;
+  final String sellerName;
+  final String buyerId;
+  final String buyerName;
   final String title;
   final String lastMessage;
   final String lastSenderId;
+  final String lastSenderRole;
   final DateTime updatedAt;
   final Map<String, int> unreadCounts;
   final List<String> participants;
 
   const ChatThreadModel({
     required this.id,
+    required this.sellerId,
+    required this.sellerName,
+    required this.buyerId,
+    required this.buyerName,
     required this.title,
     required this.lastMessage,
     required this.lastSenderId,
+    required this.lastSenderRole,
     required this.updatedAt,
     required this.unreadCounts,
     required this.participants,
@@ -53,6 +66,7 @@ class ChatThreadModel {
   factory ChatThreadModel.fromDoc(
     DocumentSnapshot doc, {
     required String currentUserId,
+    required bool isSellerView,
   }) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final ts = data['updatedAt'];
@@ -69,27 +83,32 @@ class ChatThreadModel {
     final rawParticipants = data['participants'] as List<dynamic>? ?? [];
     final participants = rawParticipants.map((e) => e.toString()).toList();
 
-    final rawNames = data['participantNames'] as Map<String, dynamic>? ?? {};
-    String resolvedTitle = (data['title'] ?? '').toString().trim();
+    final sellerId = (data['sellerId'] ?? '').toString().trim();
+    final sellerName = (data['sellerName'] ?? '').toString().trim();
+    final buyerId = (data['buyerId'] ?? '').toString().trim();
+    final buyerName = (data['buyerName'] ?? '').toString().trim();
 
-    if (resolvedTitle.isEmpty && rawNames.isNotEmpty) {
-      for (final entry in rawNames.entries) {
-        if (entry.key.toString() != currentUserId) {
-          resolvedTitle = entry.value.toString().trim();
-          if (resolvedTitle.isNotEmpty) break;
-        }
-      }
-    }
-
-    if (resolvedTitle.isEmpty) {
-      resolvedTitle = (data['contactName'] ?? 'Pengguna').toString();
+    String resolvedTitle;
+    if (isSellerView) {
+      resolvedTitle = buyerName.isNotEmpty
+          ? buyerName
+          : (data['buyerName'] ?? data['title'] ?? 'Pembeli').toString();
+    } else {
+      resolvedTitle = sellerName.isNotEmpty
+          ? sellerName
+          : (data['sellerName'] ?? data['title'] ?? 'Penjual').toString();
     }
 
     return ChatThreadModel(
       id: doc.id,
+      sellerId: sellerId,
+      sellerName: sellerName.isEmpty ? resolvedTitle : sellerName,
+      buyerId: buyerId,
+      buyerName: buyerName.isEmpty ? 'Pembeli' : buyerName,
       title: resolvedTitle,
       lastMessage: (data['lastMessage'] ?? '').toString(),
       lastSenderId: (data['lastSenderId'] ?? '').toString(),
+      lastSenderRole: (data['lastSenderRole'] ?? 'buyer').toString(),
       updatedAt: dt,
       unreadCounts: unreadMap,
       participants: participants,
@@ -121,61 +140,136 @@ class ChatService {
     return 'Pengguna';
   }
 
-  String buildThreadId(String contactName) {
-    final cleanContact = contactName
+  String _slug(String input) {
+    final s = input
         .trim()
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_+|_+$'), '');
-    final safeContact = cleanContact.isEmpty ? 'contact' : cleanContact;
-    return '${currentUserId}__$safeContact';
+    return s.isEmpty ? 'user' : s;
   }
 
-  Future<String> ensureThread({
-    required String contactName,
-    String? peerUserId,
-  }) async {
-    final cleanName = contactName.trim().isEmpty
-        ? 'Kontak'
-        : contactName.trim();
-    final threadId = buildThreadId(cleanName);
-    final docRef = _db.collection('chats').doc(threadId);
-    final snap = await docRef.get();
-
-    final participants = <String>[currentUserId];
-    if (peerUserId != null && peerUserId.trim().isNotEmpty) {
-      participants.add(peerUserId.trim());
-    }
-
-    if (!snap.exists) {
-      await docRef.set({
-        'title': cleanName,
-        'contactName': cleanName,
-        'participants': participants,
-        'participantNames': {
-          currentUserId: currentUserName,
-          cleanName: cleanName,
-        },
-        'lastMessage': '',
-        'lastSenderId': '',
-        'unreadCounts': {currentUserId: 0},
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    return threadId;
+  String buildBuyerSellerThreadId({
+    required String buyerId,
+    required String sellerKey,
+  }) {
+    return 'buyer_' + _slug(buyerId) + '__seller_' + _slug(sellerKey);
   }
 
-  Stream<ChatThreadList> threadsStream() {
+  Future<String> resolveCurrentUserDisplayName() async {
+    final user = _auth.currentUser;
+    if (user == null) return currentUserName;
+
+    try {
+      final doc = await _db.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+        final dbName = (data['nama'] ?? data['name'] ?? '').toString().trim();
+        if (dbName.isNotEmpty) return dbName;
+      }
+    } catch (_) {}
+
+    return currentUserName;
+  }
+
+  Future<String> resolveSellerIdByStoreName(String storeName) async {
+    final cleanStore = storeName.trim();
+    if (cleanStore.isEmpty) return 'seller_unknown';
+
+    final lowerStore = cleanStore.toLowerCase();
+
+    try {
+      final byStoreName = await _db
+          .collection('users')
+          .where('storeName', isEqualTo: cleanStore)
+          .limit(1)
+          .get();
+      if (byStoreName.docs.isNotEmpty) {
+        return byStoreName.docs.first.id;
+      }
+
+      final byNamaToko = await _db
+          .collection('users')
+          .where('namaToko', isEqualTo: cleanStore)
+          .limit(1)
+          .get();
+      if (byNamaToko.docs.isNotEmpty) {
+        return byNamaToko.docs.first.id;
+      }
+
+      final snapshot = await _db.collection('users').limit(100).get();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final s1 = (data['storeName'] ?? '').toString().trim().toLowerCase();
+        final s2 = (data['namaToko'] ?? '').toString().trim().toLowerCase();
+        final s3 = (data['nama'] ?? data['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (s1 == lowerStore || s2 == lowerStore || s3 == lowerStore) {
+          return doc.id;
+        }
+      }
+    } catch (_) {}
+
+    return 'seller_' + _slug(cleanStore);
+  }
+
+  /// Stream thread untuk halaman chat PEMBELI (hanya thread tempat user ini adalah buyer).
+  Stream<ChatThreadList> buyerThreadsStream() {
+    final uid = currentUserId;
     return _db
         .collection('chats')
-        .where('participants', arrayContains: currentUserId)
+        .where('buyerId', isEqualTo: uid)
         .snapshots()
         .map((snapshot) {
           final list = snapshot.docs
+              .where((doc) {
+                final data = doc.data();
+                final bId = (data['buyerId'] ?? '').toString();
+                final sId = (data['sellerId'] ?? '').toString();
+                return bId == uid && sId != uid;
+              })
               .map(
-                (doc) =>
-                    ChatThreadModel.fromDoc(doc, currentUserId: currentUserId),
+                (doc) => ChatThreadModel.fromDoc(
+                  doc,
+                  currentUserId: uid,
+                  isSellerView: false,
+                ),
+              )
+              .toList();
+          list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          return list;
+        });
+  }
+
+  /// Stream thread untuk halaman chat PENJUAL (hanya thread milik penjual ini yang punya pesan dari pembeli).
+  Stream<ChatThreadList> sellerThreadsStream() {
+    final uid = currentUserId;
+    return _db
+        .collection('chats')
+        .where('sellerId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) {
+          final list = snapshot.docs
+              .where((doc) {
+                final data = doc.data();
+                final sId = (data['sellerId'] ?? '').toString();
+                final bId = (data['buyerId'] ?? '').toString();
+                final hasBuyerMsg = data['hasBuyerMessage'] == true;
+                final lastMsg = (data['lastMessage'] ?? '').toString().trim();
+                // Jangan tampilkan akun penjual sendiri sebagai "pembeli"
+                return sId == uid &&
+                    bId.isNotEmpty &&
+                    bId != uid &&
+                    (hasBuyerMsg || lastMsg.isNotEmpty);
+              })
+              .map(
+                (doc) => ChatThreadModel.fromDoc(
+                  doc,
+                  currentUserId: uid,
+                  isSellerView: true,
+                ),
               )
               .toList();
           list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -197,48 +291,101 @@ class ChatService {
         );
   }
 
-  Future<void> sendMessage({
-    required String threadId,
-    required String contactName,
+  /// Mengirim pesan dari sisi PEMBELI ke PENJUAL.
+  Future<void> sendBuyerMessage({
+    required String sellerName,
     required String text,
-    String? peerUserId,
+    String? sellerId,
+    String? threadId,
   }) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty) return;
 
-    final resolvedThreadId = threadId.trim().isEmpty
-        ? buildThreadId(contactName)
-        : threadId.trim();
+    final uid = currentUserId;
+    final cleanSellerName = sellerName.trim().isEmpty
+        ? 'Penjual'
+        : sellerName.trim();
+    final resolvedSellerId = (sellerId != null && sellerId.trim().isNotEmpty)
+        ? sellerId.trim()
+        : await resolveSellerIdByStoreName(cleanSellerName);
+
+    final resolvedThreadId = (threadId != null && threadId.trim().isNotEmpty)
+        ? threadId.trim()
+        : buildBuyerSellerThreadId(buyerId: uid, sellerKey: resolvedSellerId);
+
+    final buyerDisplayName = await resolveCurrentUserDisplayName();
 
     final threadRef = _db.collection('chats').doc(resolvedThreadId);
     final msgRef = threadRef.collection('messages').doc();
 
-    final participants = <String>[currentUserId];
-    if (peerUserId != null && peerUserId.trim().isNotEmpty) {
-      participants.add(peerUserId.trim());
-    }
+    final batch = _db.batch();
+    batch.set(msgRef, {
+      'senderId': uid,
+      'senderName': buyerDisplayName,
+      'senderRole': 'buyer',
+      'text': cleanText,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    batch.set(threadRef, {
+      'buyerId': uid,
+      'buyerName': buyerDisplayName,
+      'sellerId': resolvedSellerId,
+      'sellerName': cleanSellerName,
+      'title': cleanSellerName,
+      'participants': FieldValue.arrayUnion([uid, resolvedSellerId]),
+      'hasBuyerMessage': true,
+      'lastMessage': cleanText,
+      'lastSenderId': uid,
+      'lastSenderRole': 'buyer',
+      'updatedAt': FieldValue.serverTimestamp(),
+      'unreadCounts.' + uid: 0,
+      'unreadCounts.' + resolvedSellerId: FieldValue.increment(1),
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+  }
+
+  /// Mengirim pesan balasan dari sisi PENJUAL ke PEMBELI.
+  Future<void> sendSellerMessage({
+    required String threadId,
+    required String buyerName,
+    required String text,
+    String? buyerId,
+  }) async {
+    final cleanText = text.trim();
+    if (cleanText.isEmpty || threadId.trim().isEmpty) return;
+
+    final uid = currentUserId;
+    final sellerDisplayName = await resolveCurrentUserDisplayName();
+
+    final threadRef = _db.collection('chats').doc(threadId.trim());
+    final msgRef = threadRef.collection('messages').doc();
 
     final batch = _db.batch();
     batch.set(msgRef, {
-      'senderId': currentUserId,
-      'senderName': currentUserName,
+      'senderId': uid,
+      'senderName': sellerDisplayName,
+      'senderRole': 'seller',
       'text': cleanText,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     final updateData = <String, dynamic>{
-      'title': contactName.trim(),
-      'contactName': contactName.trim(),
-      'participants': FieldValue.arrayUnion(participants),
-      'participantNames.$currentUserId': currentUserName,
+      'sellerId': uid,
+      'sellerName': sellerDisplayName,
+      'buyerName': buyerName.trim().isEmpty ? 'Pembeli' : buyerName.trim(),
       'lastMessage': cleanText,
-      'lastSenderId': currentUserId,
+      'lastSenderId': uid,
+      'lastSenderRole': 'seller',
       'updatedAt': FieldValue.serverTimestamp(),
-      'unreadCounts.$currentUserId': 0,
+      'unreadCounts.' + uid: 0,
     };
 
-    if (peerUserId != null && peerUserId.trim().isNotEmpty) {
-      updateData['unreadCounts.${peerUserId.trim()}'] = FieldValue.increment(1);
+    if (buyerId != null && buyerId.trim().isNotEmpty) {
+      updateData['buyerId'] = buyerId.trim();
+      updateData['participants'] = FieldValue.arrayUnion([uid, buyerId.trim()]);
+      updateData['unreadCounts.' + buyerId.trim()] = FieldValue.increment(1);
     }
 
     batch.set(threadRef, updateData, SetOptions(merge: true));
@@ -246,8 +393,8 @@ class ChatService {
   }
 
   Future<void> markAsRead(String threadId) async {
-    if (threadId.isEmpty) return;
-    await _db.collection('chats').doc(threadId).set({
+    if (threadId.trim().isEmpty) return;
+    await _db.collection('chats').doc(threadId.trim()).set({
       'unreadCounts': {currentUserId: 0},
     }, SetOptions(merge: true));
   }
@@ -255,14 +402,14 @@ class ChatService {
   String formatRelativeTime(DateTime t) {
     final d = DateTime.now().difference(t);
     if (d.inMinutes < 1) return 'baru saja';
-    if (d.inMinutes < 60) return '${d.inMinutes}mnt';
-    if (d.inHours < 24) return '${d.inHours}jam';
-    return '${d.inDays}hari';
+    if (d.inMinutes < 60) return d.inMinutes.toString() + 'mnt';
+    if (d.inHours < 24) return d.inHours.toString() + 'jam';
+    return d.inDays.toString() + 'hari';
   }
 
   String formatClock(DateTime t) {
     final h = t.hour.toString().padLeft(2, '0');
     final m = t.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    return h + ':' + m;
   }
 }

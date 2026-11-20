@@ -47,7 +47,7 @@ class _ChatListPageState extends State<ChatListPage> {
             ),
             Expanded(
               child: StreamBuilder<ChatThreadList>(
-                stream: ChatService.instance.threadsStream(),
+                stream: ChatService.instance.buyerThreadsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting &&
                       !snapshot.hasData) {
@@ -117,7 +117,11 @@ class _ChatListPageState extends State<ChatListPage> {
                       final hasUnread = thread.unreadFor(myId) > 0;
                       final subtitle = thread.lastMessage.isEmpty
                           ? 'Belum ada pesan'
-                          : '${thread.lastMessage} · ${ChatService.instance.formatRelativeTime(thread.updatedAt)}';
+                          : thread.lastMessage +
+                                ' · ' +
+                                ChatService.instance.formatRelativeTime(
+                                  thread.updatedAt,
+                                );
 
                       return _ChatListTile(
                         title: thread.title,
@@ -130,6 +134,7 @@ class _ChatListPageState extends State<ChatListPage> {
                               builder: (_) => ChatDetailPage(
                                 contactName: thread.title,
                                 threadId: thread.id,
+                                peerUserId: thread.sellerId,
                               ),
                             ),
                           );

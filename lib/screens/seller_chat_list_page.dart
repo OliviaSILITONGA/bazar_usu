@@ -44,7 +44,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
             _buildHeader(),
             Expanded(
               child: StreamBuilder<ChatThreadList>(
-                stream: ChatService.instance.threadsStream(),
+                stream: ChatService.instance.sellerThreadsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting &&
                       !snapshot.hasData) {
@@ -76,6 +76,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
                             builder: (_) => SellerChatRoomPage(
                               threadId: contacts[i].id,
                               contactName: contacts[i].title,
+                              peerUserId: contacts[i].buyerId,
                             ),
                           ),
                         );
@@ -187,8 +188,8 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
           const SizedBox(height: 10),
           Text(
             searching
-                ? 'Tidak ada pembeli bernama $_query'
-                : 'Belum ada pesan masuk',
+                ? 'Tidak ada pembeli bernama ' + _query
+                : 'Belum ada pesan dari pembeli',
             style: TextStyle(
               fontSize: 13,
               color: kDarkGreen.withValues(alpha: 0.6),

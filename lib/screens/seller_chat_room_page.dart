@@ -36,16 +36,13 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
     super.initState();
     _threadId = (widget.threadId != null && widget.threadId!.trim().isNotEmpty)
         ? widget.threadId!.trim()
-        : ChatService.instance.buildThreadId(widget.contactName);
+        : '';
     _initRoom();
   }
 
   Future<void> _initRoom() async {
+    if (_threadId.isEmpty) return;
     try {
-      await ChatService.instance.ensureThread(
-        contactName: widget.contactName,
-        peerUserId: widget.peerUserId,
-      );
       await ChatService.instance.markAsRead(_threadId);
     } catch (_) {}
   }
@@ -57,7 +54,7 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
   }
 
   Future<void> _send(String text) async {
-    if (_isSending) return;
+    if (_isSending || _threadId.isEmpty) return;
     final clean = text.trim();
     if (clean.isEmpty) return;
 
@@ -67,17 +64,17 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
     }
 
     try {
-      await ChatService.instance.sendMessage(
+      await ChatService.instance.sendSellerMessage(
         threadId: _threadId,
-        contactName: widget.contactName,
+        buyerName: widget.contactName,
+        buyerId: widget.peerUserId,
         text: clean,
-        peerUserId: widget.peerUserId,
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim pesan: $e'),
+            content: Text('Gagal mengirim pesan: ' + e.toString()),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -139,49 +136,60 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
               ),
             ),
             Expanded(
-              child: StreamBuilder<ChatMessageList>(
-                stream: ChatService.instance.messagesStream(_threadId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: kDarkGreen),
-                    );
-                  }
-
-                  final messages = snapshot.data ?? [];
-                  if (messages.isEmpty) {
-                    return Center(
+              child: _threadId.isEmpty
+                  ? Center(
                       child: Text(
-                        'Mulai percakapan dengan ${widget.contactName}',
+                        'Thread chat pembeli tidak ditemukan',
                         style: TextStyle(
                           fontSize: 13,
                           color: kDarkGreen.withValues(alpha: 0.5),
                         ),
                       ),
-                    );
-                  }
+                    )
+                  : StreamBuilder<ChatMessageList>(
+                      stream: ChatService.instance.messagesStream(_threadId),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(color: kDarkGreen),
+                          );
+                        }
 
-                  return ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
+                        final messages = snapshot.data ?? [];
+                        if (messages.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'Mulai percakapan dengan ' + widget.contactName,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: kDarkGreen.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          reverse: true,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          itemCount: messages.length,
+                          itemBuilder: (context, i) {
+                            final m = messages[messages.length - 1 - i];
+                            return _MessageBubble(
+                              text: m.text,
+                              clockText: ChatService.instance.formatClock(
+                                m.createdAt,
+                              ),
+                              mine: m.senderId == myId,
+                            );
+                          },
+                        );
+                      },
                     ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, i) {
-                      final m = messages[messages.length - 1 - i];
-                      return _MessageBubble(
-                        text: m.text,
-                        clockText: ChatService.instance.formatClock(
-                          m.createdAt,
-                        ),
-                        mine: m.senderId == myId,
-                      );
-                    },
-                  );
-                },
-              ),
             ),
             SizedBox(
               height: 40,

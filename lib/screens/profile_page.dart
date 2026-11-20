@@ -479,7 +479,9 @@ class _NavIcon extends StatelessWidget {
   const _NavIcon({
     required this.icon,
     required this.onTap,
-  }) : size = 24 : isActive = false;
+    this.size = 24,
+    this.isActive = false,
+  });
 
   @override
   Widget build(BuildContext context) {
