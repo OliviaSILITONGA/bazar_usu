@@ -12,16 +12,6 @@ class ChatListPage extends StatefulWidget {
 }
 
 class _ChatListPageState extends State<ChatListPage> {
-  static const List<String> _defaultContacts = [
-    'KMK Ilmu Komputer',
-    'KMK Teknik Kimia',
-    'Yana',
-    'UKM Paduan Suara ULOS',
-    'UKM AISEC',
-    'Olivia',
-    'SILI TONGA',
-  ];
-
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   String _query = '';
@@ -30,42 +20,6 @@ class _ChatListPageState extends State<ChatListPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<ChatThreadModel> _mergeWithDefaults(ChatThreadList dbThreads) {
-    final mapByTitle = <String, ChatThreadModel>{};
-    for (final t in dbThreads) {
-      mapByTitle[t.title.trim().toLowerCase()] = t;
-    }
-
-    final result = <ChatThreadModel>[...dbThreads];
-    for (final name in _defaultContacts) {
-      final key = name.trim().toLowerCase();
-      if (!mapByTitle.containsKey(key)) {
-        result.add(
-          ChatThreadModel(
-            id: ChatService.instance.buildThreadId(name),
-            title: name,
-            lastMessage: 'Ketuk untuk mulai chat',
-            lastSenderId: '',
-            updatedAt: DateTime(2000),
-            unreadCounts: const {},
-            participants: [ChatService.instance.currentUserId],
-          ),
-        );
-      }
-    }
-
-    final q = _query.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? result
-        : result.where((t) {
-            return t.title.toLowerCase().contains(q) ||
-                t.lastMessage.toLowerCase().contains(q);
-          }).toList();
-
-    filtered.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return filtered;
   }
 
   @override
@@ -102,7 +56,14 @@ class _ChatListPageState extends State<ChatListPage> {
                     );
                   }
 
-                  final threads = _mergeWithDefaults(snapshot.data ?? []);
+                  final allThreads = snapshot.data ?? [];
+                  final q = _query.trim().toLowerCase();
+                  final threads = q.isEmpty
+                      ? allThreads
+                      : allThreads.where((t) {
+                          return t.title.toLowerCase().contains(q) ||
+                              t.lastMessage.toLowerCase().contains(q);
+                        }).toList();
 
                   if (threads.isEmpty) {
                     return Center(
@@ -110,13 +71,17 @@ class _ChatListPageState extends State<ChatListPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: kDarkGreen.withValues(alpha: 0.4),
+                            q.isEmpty
+                                ? Icons.chat_bubble_outline
+                                : Icons.search_off,
+                            size: 56,
+                            color: kDarkGreen.withValues(alpha: 0.35),
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Kontak tidak ditemukan',
+                            q.isEmpty
+                                ? 'Belum ada percakapan'
+                                : 'Kontak tidak ditemukan',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -125,7 +90,10 @@ class _ChatListPageState extends State<ChatListPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Coba masukkan kata kunci yang berbeda',
+                            q.isEmpty
+                                ? 'Chat dengan penjual dari halaman produk akan muncul di sini'
+                                : 'Coba masukkan kata kunci yang berbeda',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12.5,
                               color: kDarkGreen.withValues(alpha: 0.5),
@@ -137,7 +105,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   }
 
                   return ListView.separated(
-                    padding: EdgeInsets.zero,
+                    padding: const EdgeInsets.only(bottom: 16),
                     itemCount: threads.length,
                     separatorBuilder: (_, _) => Divider(
                       height: 1,
@@ -147,16 +115,13 @@ class _ChatListPageState extends State<ChatListPage> {
                     itemBuilder: (context, index) {
                       final thread = threads[index];
                       final hasUnread = thread.unreadFor(myId) > 0;
-                      final hasHistory = thread.updatedAt.year > 2000;
-                      final subtitle = hasHistory
-                          ? (thread.lastMessage.isEmpty
-                                    ? 'Belum ada pesan'
-                                    : thread.lastMessage) +
+                      final subtitle = thread.lastMessage.isEmpty
+                          ? 'Belum ada pesan'
+                          : thread.lastMessage +
                                 ' · ' +
                                 ChatService.instance.formatRelativeTime(
                                   thread.updatedAt,
-                                )
-                          : thread.lastMessage;
+                                );
 
                       return _ChatListTile(
                         title: thread.title,

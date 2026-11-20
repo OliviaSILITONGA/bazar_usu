@@ -21,6 +21,7 @@ class ChatDetailPage extends StatefulWidget {
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   late final String _threadId;
   bool _isSending = false;
 
@@ -30,17 +31,25 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     _threadId = (widget.threadId != null && widget.threadId!.trim().isNotEmpty)
         ? widget.threadId!.trim()
         : ChatService.instance.buildThreadId(widget.contactName);
-    _initThread();
+    _markThreadRead();
   }
 
-  Future<void> _initThread() async {
+  Future<void> _markThreadRead() async {
     try {
-      await ChatService.instance.ensureThread(
-        contactName: widget.contactName,
-        peerUserId: widget.peerUserId,
-      );
       await ChatService.instance.markAsRead(_threadId);
     } catch (_) {}
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -58,6 +67,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         text: text,
         peerUserId: widget.peerUserId,
       );
+      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -77,6 +87,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -86,62 +97,62 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
     return Scaffold(
       backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ChatDetailHeader(contactName: widget.contactName),
-            Expanded(
-              child: StreamBuilder<ChatMessageList>(
-                stream: ChatService.instance.messagesStream(_threadId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: kDarkGreen),
-                    );
-                  }
-
-                  final messages = snapshot.data ?? [];
-                  if (messages.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Mulai percakapan dengan ' + widget.contactName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: kDarkGreen.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final isMe = msg.senderId == myId;
-                      return _ChatBubble(
-                        text: msg.text,
-                        timeText: ChatService.instance.formatClock(
-                          msg.createdAt,
-                        ),
-                        isMe: isMe,
-                      );
-                    },
+      resizeToAvoidBottomInset: true,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(62),
+        child: _ChatDetailHeader(contactName: widget.contactName),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<ChatMessageList>(
+              stream: ChatService.instance.messagesStream(_threadId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kDarkGreen),
                   );
-                },
-              ),
+                }
+
+                final messages = snapshot.data ?? [];
+                if (messages.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Mulai percakapan dengan ' + widget.contactName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: kDarkGreen.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  );
+                }
+
+                _scrollToBottom();
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    final isMe = msg.senderId == myId;
+                    return _ChatBubble(
+                      text: msg.text,
+                      timeText: ChatService.instance.formatClock(msg.createdAt),
+                      isMe: isMe,
+                    );
+                  },
+                );
+              },
             ),
-            _MessageInputBar(
-              controller: _messageController,
-              isSending: _isSending,
-              onSend: _sendMessage,
-            ),
-          ],
-        ),
+          ),
+          _MessageInputBar(
+            controller: _messageController,
+            isSending: _isSending,
+            onSend: _sendMessage,
+          ),
+        ],
       ),
     );
   }
@@ -155,48 +166,57 @@ class _ChatDetailHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: kDarkGreen,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: kLightGreen,
-            child: Icon(Icons.person, color: kDarkGreen.withValues(alpha: 0.6)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  contactName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: kLightGreen,
+                child: Icon(
+                  Icons.person,
+                  color: kDarkGreen.withValues(alpha: 0.6),
                 ),
-                Text(
-                  'ketuk ini untuk melihat profil',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 11,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      contactName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'ketuk ini untuk melihat profil',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const Icon(Icons.search, color: Colors.white, size: 22),
+            ],
           ),
-          const Icon(Icons.search, color: Colors.white, size: 22),
-        ],
+        ),
       ),
     );
   }
@@ -279,57 +299,78 @@ class _MessageInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: kDarkGreen.withValues(alpha: 0.4)),
-              ),
+    return Container(
+      color: kBg,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
               child: TextField(
                 controller: controller,
+                minLines: 1,
+                maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
                 style: const TextStyle(fontSize: 14, color: kDarkGreen),
                 decoration: InputDecoration(
                   isDense: true,
-                  border: InputBorder.none,
+                  filled: true,
+                  fillColor: Colors.white,
                   hintText: 'Ketikkan sesuatu...',
                   hintStyle: TextStyle(
                     color: kDarkGreen.withValues(alpha: 0.5),
-                    fontSize: 13,
+                    fontSize: 13.5,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide(
+                      color: kDarkGreen.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide(
+                      color: kDarkGreen.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: kDarkGreen, width: 1.5),
                   ),
                 ),
-                onSubmitted: (_) => onSend(),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: isSending ? null : onSend,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: kDarkGreen,
-                shape: BoxShape.circle,
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: isSending ? null : onSend,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: kDarkGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: isSending
+                    ? const Padding(
+                        padding: EdgeInsets.all(11),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send, color: Colors.white, size: 20),
               ),
-              child: isSending
-                  ? const Padding(
-                      padding: EdgeInsets.all(11),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send, color: Colors.white, size: 20),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

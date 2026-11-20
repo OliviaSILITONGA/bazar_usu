@@ -206,10 +206,17 @@ class ChatService {
     final cleanText = text.trim();
     if (cleanText.isEmpty) return;
 
-    await ensureThread(contactName: contactName, peerUserId: peerUserId);
+    final resolvedThreadId = threadId.trim().isEmpty
+        ? buildThreadId(contactName)
+        : threadId.trim();
 
-    final threadRef = _db.collection('chats').doc(threadId);
+    final threadRef = _db.collection('chats').doc(resolvedThreadId);
     final msgRef = threadRef.collection('messages').doc();
+
+    final participants = <String>[currentUserId];
+    if (peerUserId != null && peerUserId.trim().isNotEmpty) {
+      participants.add(peerUserId.trim());
+    }
 
     final batch = _db.batch();
     batch.set(msgRef, {
@@ -222,6 +229,8 @@ class ChatService {
     final updateData = <String, dynamic>{
       'title': contactName.trim(),
       'contactName': contactName.trim(),
+      'participants': FieldValue.arrayUnion(participants),
+      'participantNames.' + currentUserId: currentUserName,
       'lastMessage': cleanText,
       'lastSenderId': currentUserId,
       'updatedAt': FieldValue.serverTimestamp(),
