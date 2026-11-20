@@ -50,17 +50,19 @@ class _HomePageUserState extends State<HomePageUser> {
     return 'Rp $formatted';
   }
 
-  // Stream produk dari Firestore digabung dengan produk bawaan
   Stream<ProductList> _productsStream() {
     return FirebaseFirestore.instance.collection('products').snapshots().map((
       snapshot,
     ) {
-      final firestoreProducts = snapshot.docs.map((doc) {
+      return snapshot.docs.map((doc) {
         final data = doc.data();
         final rawPrice = data['price'] ?? data['harga'] ?? 0;
         final priceInt = rawPrice is int
             ? rawPrice
-            : int.tryParse(rawPrice.toString()) ?? 0;
+            : int.tryParse(
+                    rawPrice.toString().replaceAll(RegExp(r'[^0-9]'), ''),
+                  ) ??
+                  0;
 
         final imgBase64 = (data['imageBase64'] ?? '').toString();
         final imgUrl =
@@ -68,8 +70,10 @@ class _HomePageUserState extends State<HomePageUser> {
                 .toString();
 
         return ProductData(
+          id: doc.id,
           name: (data['name'] ?? data['nama'] ?? 'Produk').toString(),
           price: _formatPrice(priceInt),
+          priceInt: priceInt,
           seller: (data['namaToko'] ?? data['seller'] ?? 'Toko Bazar')
               .toString(),
           image: imgBase64.isNotEmpty ? imgBase64 : imgUrl,
@@ -77,13 +81,10 @@ class _HomePageUserState extends State<HomePageUser> {
               .toString(),
           description: (data['description'] ?? data['deskripsi'] ?? '')
               .toString(),
-          reviews: const [
-            ReviewData(stars: 5, comment: 'Produk segar dan mantap!'),
-          ],
+          isPromo: data['isPromo'] == true || data['promo'] == true,
+          reviews: const [],
         );
       }).toList();
-
-      return [...firestoreProducts, ...kAllProducts];
     });
   }
 
@@ -114,8 +115,18 @@ class _HomePageUserState extends State<HomePageUser> {
             child: StreamBuilder<ProductList>(
               stream: _productsStream(),
               builder: (context, snapshot) {
-                final allProducts = snapshot.data ?? kAllProducts;
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kDarkGreen),
+                  );
+                }
+
+                final allProducts = snapshot.data ?? const <ProductData>[];
                 final filtered = _filterProducts(allProducts);
+                final promoProducts = allProducts
+                    .where((p) => p.isPromo)
+                    .toList();
 
                 return SingleChildScrollView(
                   child: Column(
@@ -140,11 +151,17 @@ class _HomePageUserState extends State<HomePageUser> {
                             ? const _EmptySearchResult()
                             : _ProductGrid(products: filtered),
                       ] else ...[
-                        const _PromoBanner(),
-                        const SizedBox(height: 24),
+                        if (promoProducts.isNotEmpty) ...[
+                          _PromoBanner(products: promoProducts),
+                          const SizedBox(height: 24),
+                        ],
                         const _SectionTitle(title: 'Produk Favorite'),
                         const SizedBox(height: 12),
-                        _ProductGrid(products: allProducts),
+                        allProducts.isEmpty
+                            ? const _EmptyBackendState(
+                                message: 'Belum ada produk di database',
+                              )
+                            : _ProductGrid(products: allProducts),
                         const SizedBox(height: 24),
                         const _SectionTitle(title: 'Bazar Favorit'),
                         const SizedBox(height: 14),
@@ -182,8 +199,8 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const int cartCount = 2;
-    const int notifCount = 1;
+    const int cartCount = 0;
+    const int notifCount = 0;
 
     return SearchBarField(
       controller: controller,
@@ -193,7 +210,7 @@ class _SearchBar extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => NotificationPage()),
+              MaterialPageRoute(builder: (_) => const NotificationPage()),
             );
           },
           child: _IconWithBadge(
@@ -206,7 +223,7 @@ class _SearchBar extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => CartPage()),
+              MaterialPageRoute(builder: (_) => const CartPage()),
             );
           },
           child: _IconWithBadge(
@@ -351,170 +368,168 @@ class _CategoryItem extends StatelessWidget {
 
 // ==================== BANNER PROMO ====================
 class _PromoBanner extends StatelessWidget {
-  const _PromoBanner();
+  final List<ProductData> products;
+  const _PromoBanner({required this.products});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 160,
-      child: ListView(
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: const [
-          _PromoCard(
-            title: 'Nasi Ayam Penyet',
-            price: 'Rp 15.000',
-            seller: 'Kedai Kak Wati',
-            image: 'assets/products/nasi_ayam_penyet.png',
-            reviews: [
-              ReviewData(stars: 5, comment: 'Porsinya besar, mengenyangkan!'),
-              ReviewData(
-                stars: 4,
-                comment: 'Rasanya autentik, sambalnya mantap.',
-              ),
-            ],
-          ),
-          SizedBox(width: 12),
-          _PromoCard(
-            title: 'Donat Coklat',
-            price: 'Rp 3.000',
-            seller: 'Toko Roti',
-            image: 'assets/products/donat_coklat.png',
-            reviews: [
-              ReviewData(stars: 5, comment: 'Coklatnya melimpah, enak banget!'),
-              ReviewData(stars: 4, comment: 'Teksturnya lembut dan empuk.'),
-            ],
-          ),
-        ],
+        itemCount: products.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) => _PromoCard(data: products[index]),
       ),
     );
   }
 }
 
 class _PromoCard extends StatelessWidget {
-  final String title;
-  final String price;
-  final String seller;
-  final String image;
-  final List<ReviewData> reviews;
+  final ProductData data;
+  const _PromoCard({required this.data});
 
-  const _PromoCard({
-    required this.title,
-    required this.price,
-    required this.seller,
-    required this.image,
-    required this.reviews,
-  });
+  Widget _buildBannerImage(String imageSource) {
+    if (imageSource.startsWith('http://') ||
+        imageSource.startsWith('https://')) {
+      return Image.network(
+        imageSource,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
+    }
 
-  int _priceToInt(String priceText) {
-    return int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    if (imageSource.isNotEmpty) {
+      try {
+        final cleanBase64 = imageSource.contains(',')
+            ? imageSource.split(',').last
+            : imageSource;
+        return Image.memory(
+          base64Decode(cleanBase64),
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        );
+      } catch (_) {
+        return const SizedBox.shrink();
+      }
+    }
+
+    return const SizedBox.shrink();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 280,
-      decoration: BoxDecoration(
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        color: kDarkGreen.withValues(alpha: 0.6),
-        image: DecorationImage(
-          image: AssetImage(image),
-          fit: BoxFit.cover,
-          onError: (_, _) {},
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0),
-              Colors.black.withValues(alpha: 0.55),
-            ],
-          ),
-        ),
-        padding: const EdgeInsets.all(14),
-        alignment: Alignment.bottomLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-            Text(
-              price,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StoreDetailPage(storeName: seller),
-                  ),
-                );
-              },
-              child: Text(
-                seller,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                  decoration: TextDecoration.underline,
-                  decorationColor: Colors.white.withValues(alpha: 0.6),
+            Container(color: kDarkGreen.withValues(alpha: 0.65)),
+            _buildBannerImage(data.image),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.05),
+                    Colors.black.withValues(alpha: 0.6),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ProductDetailPage(
-                      name: title,
-                      storeName: seller,
-                      originalPrice: _priceToInt(price),
-                      discountPrice: _priceToInt(price),
-                      rating: 4.7,
-                      reviewCount: 120,
-                      prepTime: '15-20 min',
-                      kcal: 250,
-                      description: 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
-                      image: image,
-                      reviews: reviews,
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    data.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
                     ),
                   ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: kLightGreen,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Lihat Detail',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: kDarkGreen,
+                  Text(
+                    data.price,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              StoreDetailPage(storeName: data.seller),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      data.seller,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailPage(
+                            name: data.name,
+                            storeName: data.seller,
+                            originalPrice: data.priceInt,
+                            discountPrice: data.priceInt,
+                            rating: 0,
+                            reviewCount: 0,
+                            prepTime: '15-20 min',
+                            kcal: 250,
+                            description: data.description,
+                            image: data.image,
+                            reviews: data.reviews,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kLightGreen,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Lihat Detail',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: kDarkGreen,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -545,101 +560,32 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ==================== DATASET PRODUK ====================
+// ==================== MODEL PRODUK ====================
 class ProductData {
+  final String id;
   final String name;
   final String price;
+  final int priceInt;
   final String seller;
   final String image;
   final String category;
   final String description;
+  final bool isPromo;
   final List<ReviewData> reviews;
 
   const ProductData({
+    this.id = '',
     required this.name,
     required this.price,
+    this.priceInt = 0,
     required this.seller,
     required this.image,
     required this.category,
-    this.description = 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
-    required this.reviews,
+    this.description = '',
+    this.isPromo = false,
+    this.reviews = const [],
   });
 }
-
-const List<ProductData> kAllProducts = [
-  ProductData(
-    name: 'Ayam Penyet',
-    price: 'Rp 15.000',
-    seller: 'Kedai ciau',
-    image: 'assets/products/nasi_ayam_penyet.png',
-    category: 'Makanan',
-    reviews: [
-      ReviewData(
-        stars: 5,
-        comment: 'Ayam Gepreknya pedes nampol, porsinya pas!',
-      ),
-      ReviewData(stars: 5, comment: 'Sambelnya nampol banget, favorit saya!'),
-    ],
-  ),
-  ProductData(
-    name: 'Teh Manis Dingin',
-    price: 'Rp 5.000',
-    seller: 'Kedai Kak Wati',
-    image: 'assets/products/teh_manis_dingin.png',
-    category: 'Minuman',
-    reviews: [
-      ReviewData(stars: 5, comment: 'Seger banget buat cuaca panas!'),
-      ReviewData(stars: 4, comment: 'Manisnya pas, gak terlalu enek.'),
-    ],
-  ),
-  ProductData(
-    name: 'Donat',
-    price: 'Rp 4.000',
-    seller: 'Kedai ciau',
-    image: 'assets/products/donat_coklat.png',
-    category: 'Jajanan',
-    reviews: [
-      ReviewData(stars: 4, comment: 'Donatnya empuk dan manisnya pas.'),
-      ReviewData(stars: 5, comment: 'Enak buat cemilan sore hari.'),
-    ],
-  ),
-  ProductData(
-    name: 'Kue Kering',
-    price: 'Rp 8.000',
-    seller: 'Olip Bakery',
-    image: 'assets/products/kue_kering.png',
-    category: 'Jajanan',
-    reviews: [
-      ReviewData(stars: 5, comment: 'Kue keringnya renyah banget!'),
-      ReviewData(stars: 4, comment: 'Rasanya pas, gak terlalu manis.'),
-    ],
-  ),
-  ProductData(
-    name: 'Alat Tulis',
-    price: 'Rp 10.000',
-    seller: 'FKB',
-    image: 'assets/products/alat_tulis.jfif',
-    category: 'Lainnya',
-    reviews: [
-      ReviewData(stars: 5, comment: 'Kualitas bagus, harga terjangkau.'),
-      ReviewData(
-        stars: 4,
-        comment: 'Pengiriman cepat, barang sesuai deskripsi.',
-      ),
-    ],
-  ),
-  ProductData(
-    name: 'Kue Kering',
-    price: 'Rp 8.000',
-    seller: 'Olip Bakery',
-    image: 'assets/products/kue_kering.png',
-    category: 'Jajanan',
-    reviews: [
-      ReviewData(stars: 5, comment: 'Favorit anak kos, murah dan enak!'),
-      ReviewData(stars: 5, comment: 'Selalu beli di sini tiap minggu.'),
-    ],
-  ),
-];
 
 // ==================== GRID PRODUK ====================
 class _ProductGrid extends StatelessWidget {
@@ -667,10 +613,6 @@ class _ProductCard extends StatelessWidget {
   final ProductData data;
   const _ProductCard({required this.data});
 
-  int _priceToInt(String priceText) {
-    return int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-  }
-
   Widget _buildProductImage(String imageSource) {
     if (imageSource.isEmpty) {
       return Container(
@@ -680,23 +622,6 @@ class _ProductCard extends StatelessWidget {
           Icons.image_outlined,
           color: kDarkGreen.withValues(alpha: 0.4),
           size: 32,
-        ),
-      );
-    }
-
-    if (imageSource.startsWith('assets/')) {
-      return Image.asset(
-        imageSource,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          width: double.infinity,
-          color: kLightGreen,
-          child: Icon(
-            Icons.image_outlined,
-            color: kDarkGreen.withValues(alpha: 0.4),
-            size: 32,
-          ),
         ),
       );
     }
@@ -760,13 +685,13 @@ class _ProductCard extends StatelessWidget {
             builder: (_) => ProductDetailPage(
               name: data.name,
               storeName: data.seller,
-              originalPrice: _priceToInt(data.price),
-              discountPrice: _priceToInt(data.price),
-              rating: 4.7,
-              reviewCount: 120,
+              originalPrice: data.priceInt,
+              discountPrice: data.priceInt,
+              rating: 0,
+              reviewCount: 0,
               prepTime: '15-20 min',
               kcal: 250,
-              description: data.description.isNotEmpty ? data.description : 'Deskripsi produk belum tersedia, silakan tambahkan detail lebih lanjut nanti.',
+              description: data.description,
               image: data.image,
               reviews: data.reviews,
             ),
@@ -862,7 +787,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-// ==================== STATE PENCARIAN KOSONG ====================
+// ==================== STATE PENCARIAN / KOSONG ====================
 class _EmptySearchResult extends StatelessWidget {
   const _EmptySearchResult();
 
@@ -895,6 +820,27 @@ class _EmptySearchResult extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyBackendState extends StatelessWidget {
+  final String message;
+  const _EmptyBackendState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      child: Center(
+        child: Text(
+          message,
+          style: TextStyle(
+            fontSize: 13,
+            color: kDarkGreen.withValues(alpha: 0.55),
+          ),
+        ),
       ),
     );
   }
@@ -937,19 +883,20 @@ class _AIButton extends StatelessWidget {
 class _PopularStoresRow extends StatelessWidget {
   const _PopularStoresRow();
 
-  static const List<_StoreData> _stores = [
-    _StoreData(name: 'Kue Kering Tho', image: 'assets/products/kue_kering.png'),
-    _StoreData(name: 'KFC', image: 'assets/products/kfc.png'),
-    _StoreData(name: 'Ko yana', image: 'assets/products/donat_coklat.png'),
-    _StoreData(name: 'SILI TONGA', image: 'assets/images/AI_HOSHINO.jpg'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('tenants').snapshots(),
       builder: (context, snapshot) {
-        final firestoreStores = (snapshot.data?.docs ?? [])
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const SizedBox(
+            height: 90,
+            child: Center(child: CircularProgressIndicator(color: kDarkGreen)),
+          );
+        }
+
+        final stores = (snapshot.data?.docs ?? [])
             .map((doc) {
               final data = doc.data() as Map<String, dynamic>? ?? {};
               final name = (data['namaToko'] ?? data['storeName'] ?? '')
@@ -961,26 +908,20 @@ class _PopularStoresRow extends StatelessWidget {
             .where((s) => s.name.isNotEmpty)
             .toList();
 
-        // Gabungkan toko dari Firestore dengan daftar toko bawaan tanpa duplikat nama
-        final existingNames = firestoreStores
-            .map((s) => s.name.toLowerCase())
-            .toSet();
-        final mergedStores = [
-          ...firestoreStores,
-          ..._stores.where(
-            (s) => !existingNames.contains(s.name.toLowerCase()),
-          ),
-        ];
+        if (stores.isEmpty) {
+          return const _EmptyBackendState(
+            message: 'Belum ada toko terdaftar di database',
+          );
+        }
 
         return SizedBox(
           height: 90,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: mergedStores.length,
+            itemCount: stores.length,
             separatorBuilder: (_, _) => const SizedBox(width: 16),
-            itemBuilder: (context, index) =>
-                _StoreAvatar(data: mergedStores[index]),
+            itemBuilder: (context, index) => _StoreAvatar(data: stores[index]),
           ),
         );
       },
@@ -1004,18 +945,6 @@ class _StoreAvatar extends StatelessWidget {
         Icons.storefront_outlined,
         color: kDarkGreen.withValues(alpha: 0.6),
         size: 26,
-      );
-    }
-
-    if (imageSource.startsWith('assets/')) {
-      return Image.asset(
-        imageSource,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.storefront_outlined,
-          color: kDarkGreen.withValues(alpha: 0.6),
-          size: 26,
-        ),
       );
     }
 
