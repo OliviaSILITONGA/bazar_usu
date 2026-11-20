@@ -77,7 +77,7 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim pesan: ' + e.toString()),
+            content: Text('Gagal mengirim pesan: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -153,7 +153,7 @@ class _SellerChatRoomPageState extends State<SellerChatRoomPage> {
                   if (messages.isEmpty) {
                     return Center(
                       child: Text(
-                        'Mulai percakapan dengan ' + widget.contactName,
+                        'Mulai percakapan dengan ${widget.contactName}',
                         style: TextStyle(
                           fontSize: 13,
                           color: kDarkGreen.withValues(alpha: 0.5),

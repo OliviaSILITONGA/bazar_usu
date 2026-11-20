@@ -5,7 +5,6 @@ import 'chat_list_page.dart';
 import 'home_page_user.dart'; // <- sesuaikan dengan nama file HomePageUser kamu
 import 'orders_page.dart';
 import 'profile_page.dart';
-import 'fitur_AI.dart';
 
 /// Halaman induk yang memegang SATU bottom navigation bar untuk 4 tab:
 /// Beranda, Pesanan, Chat, dan Profil.

@@ -168,7 +168,7 @@ class _ProductReviewsPageState extends State<ProductReviewsPage> {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim ulasan: ' + e.toString()),
+            content: Text('Gagal mengirim ulasan: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -180,7 +180,7 @@ class _ProductReviewsPageState extends State<ProductReviewsPage> {
     final day = dt.day.toString().padLeft(2, '0');
     final month = dt.month.toString().padLeft(2, '0');
     final year = dt.year.toString();
-    return day + '/' + month + '/' + year;
+    return '$day/$month/$year';
   }
 
   @override
@@ -261,7 +261,7 @@ class _ProductReviewsPageState extends State<ProductReviewsPage> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '(' + count.toString() + ' ulasan)',
+                            '($count ulasan)',
                             style: const TextStyle(
                               fontSize: 13,
                               color: Colors.black54,
@@ -389,7 +389,7 @@ class _ProductReviewsPageState extends State<ProductReviewsPage> {
                         return Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: _FilterChip(
-                            label: star.toString() + ' ★',
+                            label: '$star ★',
                             selected: _filterStar == star,
                             onTap: () => setState(() => _filterStar = star),
                           ),

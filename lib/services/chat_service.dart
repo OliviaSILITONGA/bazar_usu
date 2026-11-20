@@ -128,7 +128,7 @@ class ChatService {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_+|_+$'), '');
     final safeContact = cleanContact.isEmpty ? 'contact' : cleanContact;
-    return currentUserId + '__' + safeContact;
+    return '${currentUserId}__$safeContact';
   }
 
   Future<String> ensureThread({
@@ -230,15 +230,15 @@ class ChatService {
       'title': contactName.trim(),
       'contactName': contactName.trim(),
       'participants': FieldValue.arrayUnion(participants),
-      'participantNames.' + currentUserId: currentUserName,
+      'participantNames.$currentUserId': currentUserName,
       'lastMessage': cleanText,
       'lastSenderId': currentUserId,
       'updatedAt': FieldValue.serverTimestamp(),
-      'unreadCounts.' + currentUserId: 0,
+      'unreadCounts.$currentUserId': 0,
     };
 
     if (peerUserId != null && peerUserId.trim().isNotEmpty) {
-      updateData['unreadCounts.' + peerUserId.trim()] = FieldValue.increment(1);
+      updateData['unreadCounts.${peerUserId.trim()}'] = FieldValue.increment(1);
     }
 
     batch.set(threadRef, updateData, SetOptions(merge: true));
@@ -255,14 +255,14 @@ class ChatService {
   String formatRelativeTime(DateTime t) {
     final d = DateTime.now().difference(t);
     if (d.inMinutes < 1) return 'baru saja';
-    if (d.inMinutes < 60) return d.inMinutes.toString() + 'mnt';
-    if (d.inHours < 24) return d.inHours.toString() + 'jam';
-    return d.inDays.toString() + 'hari';
+    if (d.inMinutes < 60) return '${d.inMinutes}mnt';
+    if (d.inHours < 24) return '${d.inHours}jam';
+    return '${d.inDays}hari';
   }
 
   String formatClock(DateTime t) {
     final h = t.hour.toString().padLeft(2, '0');
     final m = t.minute.toString().padLeft(2, '0');
-    return h + ':' + m;
+    return '$h:$m';
   }
 }

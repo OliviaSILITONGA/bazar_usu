@@ -138,12 +138,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Berhasil!'),
-        content: Text(
-          widget.name +
-              ' (x' +
-              _quantity.toString() +
-              ') ditambahkan ke keranjang.',
-        ),
+        content: Text('${widget.name} (x$_quantity) ditambahkan ke keranjang.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -176,7 +171,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => (match.group(1) ?? '') + '.',
+      (match) => '${match.group(1) ?? ''}.',
     );
   }
 
@@ -473,7 +468,7 @@ class _RatingRow extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Text(
-          '(' + reviewCount.toString() + ' ulasan)',
+          '($reviewCount ulasan)',
           style: const TextStyle(fontSize: 13, color: Colors.black54),
         ),
         const SizedBox(width: 6),
@@ -509,7 +504,7 @@ class _PriceRow extends StatelessWidget {
       children: [
         if (hasDiscount)
           Text(
-            'Rp' + formatPrice(originalPrice),
+            'Rp${formatPrice(originalPrice)}',
             style: const TextStyle(
               fontSize: 14,
               color: Colors.black38,
@@ -517,7 +512,7 @@ class _PriceRow extends StatelessWidget {
             ),
           ),
         Text(
-          'Rp' + formatPrice(discountPrice),
+          'Rp${formatPrice(discountPrice)}',
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -735,7 +730,7 @@ class _BottomBar extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Rp' + formatPrice(totalPrice),
+                              'Rp${formatPrice(totalPrice)}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13.5,

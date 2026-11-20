@@ -187,7 +187,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
           const SizedBox(height: 10),
           Text(
             searching
-                ? 'Tidak ada pembeli bernama ' + _query
+                ? 'Tidak ada pembeli bernama $_query'
                 : 'Belum ada pesan masuk',
             style: TextStyle(
               fontSize: 13,

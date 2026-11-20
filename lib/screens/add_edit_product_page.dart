@@ -271,7 +271,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
             const _Label('Kategori'),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: _decoration('Pilih Kategori'),
               dropdownColor: Colors.white,
               icon: const Icon(Icons.keyboard_arrow_down, color: kDarkGreen),

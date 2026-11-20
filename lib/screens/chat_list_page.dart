@@ -117,11 +117,7 @@ class _ChatListPageState extends State<ChatListPage> {
                       final hasUnread = thread.unreadFor(myId) > 0;
                       final subtitle = thread.lastMessage.isEmpty
                           ? 'Belum ada pesan'
-                          : thread.lastMessage +
-                                ' · ' +
-                                ChatService.instance.formatRelativeTime(
-                                  thread.updatedAt,
-                                );
+                          : '${thread.lastMessage} · ${ChatService.instance.formatRelativeTime(thread.updatedAt)}';
 
                       return _ChatListTile(
                         title: thread.title,

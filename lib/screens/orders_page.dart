@@ -177,7 +177,7 @@ class _OrderCard extends StatelessWidget {
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => (match.group(1) ?? '') + '.',
+      (match) => '${match.group(1) ?? ''}.',
     );
   }
 
@@ -188,7 +188,7 @@ class _OrderCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Status pesanan diperbarui menjadi ' + nextStatus),
+            content: Text('Status pesanan diperbarui menjadi $nextStatus'),
             backgroundColor: kDarkGreen,
           ),
         );
@@ -197,7 +197,7 @@ class _OrderCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memperbarui status: ' + e.toString()),
+            content: Text('Gagal memperbarui status: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -385,11 +385,7 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               Text(
-                order.createdAt.day.toString() +
-                    '/' +
-                    order.createdAt.month.toString() +
-                    '/' +
-                    order.createdAt.year.toString(),
+                '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
                 style: TextStyle(
                   fontSize: 11,
                   color: kDarkGreen.withValues(alpha: 0.5),
@@ -421,7 +417,7 @@ class _OrderCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          item.storeName + ' · x' + item.quantity.toString(),
+                          '${item.storeName} · x${item.quantity}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -434,7 +430,7 @@ class _OrderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Rp' + _formatPrice(item.price * item.quantity),
+                    'Rp${_formatPrice(item.price * item.quantity)}',
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
@@ -458,7 +454,7 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Rp' + _formatPrice(order.total),
+                'Rp${_formatPrice(order.total)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
