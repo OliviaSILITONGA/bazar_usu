@@ -297,7 +297,7 @@ class _ChatListTile extends StatelessWidget {
                           lastMessage.isEmpty
                               ? 'Belum ada pesan'
                               : (timeText.isNotEmpty
-                                    ? '\$lastMessage · \$timeText'
+                                    ? '$lastMessage · $timeText'
                                     : lastMessage),
                           style: TextStyle(
                             fontSize: 12.5,
