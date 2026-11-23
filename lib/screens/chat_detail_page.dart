@@ -26,6 +26,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   final ScrollController _scrollController = ScrollController();
 
   late String _threadId;
+  late String _displayStoreName;
   String? _resolvedSellerId;
   bool _isSending = false;
   bool _isSearching = false;
@@ -34,6 +35,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void initState() {
     super.initState();
+    _displayStoreName = widget.contactName;
     _threadId = (widget.threadId != null && widget.threadId!.trim().isNotEmpty)
         ? widget.threadId!.trim()
         : '';
@@ -48,6 +50,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           : await ChatService.instance.resolveSellerIdByStoreName(
               widget.contactName,
             );
+      final resolvedStore =
+          await ChatService.instance.resolveStoreNameBySellerId(sellerId) ??
+          widget.contactName;
       final computedThreadId = _threadId.isNotEmpty
           ? _threadId
           : ChatService.instance.buildBuyerSellerThreadId(
@@ -58,6 +63,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       if (mounted) {
         setState(() {
           _resolvedSellerId = sellerId;
+          _displayStoreName = resolvedStore;
           _threadId = computedThreadId;
         });
       }
@@ -80,7 +86,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StoreDetailPage(storeName: widget.contactName),
+        builder: (_) => StoreDetailPage(storeName: _displayStoreName),
       ),
     );
   }
@@ -109,7 +115,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       final sellerId =
           _resolvedSellerId ??
           await ChatService.instance.resolveSellerIdByStoreName(
-            widget.contactName,
+            _displayStoreName,
           );
       final activeThreadId = _threadId.isNotEmpty
           ? _threadId
@@ -126,7 +132,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       }
 
       await ChatService.instance.sendBuyerMessage(
-        sellerName: widget.contactName,
+        sellerName: _displayStoreName,
         sellerId: sellerId,
         threadId: activeThreadId,
         text: text,
@@ -166,7 +172,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
         child: _ChatDetailHeader(
-          contactName: widget.contactName,
+          contactName: _displayStoreName,
           isSearching: _isSearching,
           searchController: _searchController,
           onSearchChanged: (v) => setState(() => _searchQuery = v),
@@ -203,8 +209,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         return Center(
                           child: Text(
                             q.isEmpty
-                                ? 'Mulai percakapan dengan ' +
-                                      widget.contactName
+                                ? 'Mulai percakapan dengan ' + _displayStoreName
                                 : 'Pesan tidak ditemukan',
                             style: TextStyle(
                               fontSize: 13,

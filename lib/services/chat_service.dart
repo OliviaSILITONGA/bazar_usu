@@ -95,11 +95,12 @@ class ChatThreadModel {
     if (isSellerView) {
       resolvedTitle = buyerName.isNotEmpty
           ? buyerName
-          : (data['buyerName'] ?? data['title'] ?? 'Pembeli').toString();
+          : (data['title'] ?? 'Pembeli').toString();
     } else {
-      resolvedTitle = sellerName.isNotEmpty
+      final candidateStore = sellerName.isNotEmpty
           ? sellerName
-          : (data['sellerName'] ?? data['title'] ?? 'Penjual').toString();
+          : (data['title'] ?? '').toString().trim();
+      resolvedTitle = candidateStore.isNotEmpty ? candidateStore : 'Penjual';
     }
 
     return ChatThreadModel(
@@ -227,32 +228,137 @@ class ChatService {
     return 'seller_' + _slug(cleanStore);
   }
 
-  /// Stream thread untuk halaman chat PEMBELI.
-  Stream<ChatThreadList> buyerThreadsStream() {
+  /// Mengambil nama toko (`namaToko` / `storeName`) dari koleksi `tenants` berdasarkan UID penjual.
+  Future<String?> resolveStoreNameBySellerId(String sellerId) async {
+    final cleanId = sellerId.trim();
+    if (cleanId.isEmpty) return null;
+
+    try {
+      // 1. Cek dokumen langsung di tenants/{sellerId}
+      final doc = await _db.collection('tenants').doc(cleanId).get();
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+        final store = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim();
+        if (store.isNotEmpty) return store;
+      }
+
+      // 2. Fallback query berdasarkan field `uid` di koleksi `tenants`
+      final snap = await _db
+          .collection('tenants')
+          .where('uid', isEqualTo: cleanId)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        final store = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim();
+        if (store.isNotEmpty) return store;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Stream thread untuk halaman chat PEMBELI (selalu memprioritaskan nama toko dari `tenants`).
+  Stream<ChatThreadList> buyerThreadsStream() async* {
     final uid = currentUserId;
-    return _db
-        .collection('chats')
-        .where('participants', arrayContains: uid)
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs
-              .where((doc) {
-                final data = doc.data();
-                final bId = (data['buyerId'] ?? '').toString();
-                final sId = (data['sellerId'] ?? '').toString();
-                return bId == uid && sId != uid;
-              })
-              .map(
-                (doc) => ChatThreadModel.fromDoc(
-                  doc,
-                  currentUserId: uid,
-                  isSellerView: false,
-                ),
-              )
-              .toList();
-          list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-          return list;
-        });
+    final storeNameByKey = <String, String>{};
+    final sellerOwnerNames = <String>{};
+
+    try {
+      final tenantsSnap = await _db.collection('tenants').limit(200).get();
+      for (final doc in tenantsSnap.docs) {
+        final data = doc.data();
+        final store = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim();
+        if (store.isEmpty) continue;
+
+        final ownerUid =
+            (data['uid'] ?? data['ownerId'] ?? data['userId'] ?? doc.id)
+                .toString()
+                .trim();
+        if (ownerUid.isNotEmpty) {
+          storeNameByKey[ownerUid] = store;
+          try {
+            final ownerDoc = await _db.collection('users').doc(ownerUid).get();
+            if (ownerDoc.exists) {
+              final oData = ownerDoc.data() ?? {};
+              final ownerName = (oData['nama'] ?? oData['name'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              if (ownerName.isNotEmpty) {
+                sellerOwnerNames.add(ownerName);
+                storeNameByKey[ownerName] = store;
+              }
+            }
+          } catch (_) {}
+        }
+
+        storeNameByKey['seller_' + _slug(store)] = store;
+        storeNameByKey[store.toLowerCase()] = store;
+      }
+    } catch (_) {}
+
+    await for (final snapshot
+        in _db
+            .collection('chats')
+            .where('participants', arrayContains: uid)
+            .snapshots()) {
+      final rawDocs = snapshot.docs.where((doc) {
+        final data = doc.data();
+        final bId = (data['buyerId'] ?? '').toString().trim();
+        final sId = (data['sellerId'] ?? '').toString().trim();
+        return bId == uid && sId != uid;
+      }).toList();
+
+      final list = <ChatThreadModel>[];
+      for (final doc in rawDocs) {
+        final base = ChatThreadModel.fromDoc(
+          doc,
+          currentUserId: uid,
+          isSellerView: false,
+        );
+
+        final lowerBaseTitle = base.title.trim().toLowerCase();
+        final resolvedFromMap =
+            storeNameByKey[base.sellerId] ??
+            storeNameByKey[base.sellerId.toLowerCase()] ??
+            storeNameByKey[lowerBaseTitle] ??
+            await resolveStoreNameBySellerId(base.sellerId);
+
+        final displayStore =
+            (resolvedFromMap != null && resolvedFromMap.isNotEmpty)
+            ? resolvedFromMap
+            : (sellerOwnerNames.contains(lowerBaseTitle)
+                  ? 'Penjual'
+                  : base.title);
+
+        list.add(
+          ChatThreadModel(
+            id: base.id,
+            sellerId: base.sellerId,
+            sellerName: displayStore,
+            buyerId: base.buyerId,
+            buyerName: base.buyerName,
+            title: displayStore,
+            lastMessage: base.lastMessage,
+            lastSenderId: base.lastSenderId,
+            lastSenderRole: base.lastSenderRole,
+            updatedAt: base.updatedAt,
+            unreadCounts: base.unreadCounts,
+            participants: base.participants,
+          ),
+        );
+      }
+
+      list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      yield list;
+    }
   }
 
   /// Stream thread untuk halaman chat PENJUAL.
@@ -376,6 +482,11 @@ class ChatService {
         ? sellerId.trim()
         : await resolveSellerIdByStoreName(cleanSellerName);
 
+    final storeFromDb = await resolveStoreNameBySellerId(resolvedSellerId);
+    final finalSellerName = (storeFromDb != null && storeFromDb.isNotEmpty)
+        ? storeFromDb
+        : cleanSellerName;
+
     final resolvedThreadId = (threadId != null && threadId.trim().isNotEmpty)
         ? threadId.trim()
         : buildBuyerSellerThreadId(buyerId: uid, sellerKey: resolvedSellerId);
@@ -399,8 +510,8 @@ class ChatService {
       'buyerId': uid,
       'buyerName': buyerDisplayName,
       'sellerId': resolvedSellerId,
-      'sellerName': cleanSellerName,
-      'title': cleanSellerName,
+      'sellerName': finalSellerName,
+      'title': finalSellerName,
       'participants': FieldValue.arrayUnion([uid, resolvedSellerId]),
       'hasBuyerMessage': true,
       'lastMessage': cleanText,
@@ -424,7 +535,10 @@ class ChatService {
     if (cleanText.isEmpty || threadId.trim().isEmpty) return;
 
     final uid = currentUserId;
-    final sellerDisplayName = await resolveCurrentUserDisplayName();
+    final storeName = await resolveStoreNameBySellerId(uid);
+    final sellerDisplayName = (storeName != null && storeName.isNotEmpty)
+        ? storeName
+        : await resolveCurrentUserDisplayName();
 
     final threadRef = _db.collection('chats').doc(threadId.trim());
     final msgRef = threadRef.collection('messages').doc();
@@ -443,6 +557,7 @@ class ChatService {
     final updateData = <String, dynamic>{
       'sellerId': uid,
       'sellerName': sellerDisplayName,
+      'title': sellerDisplayName,
       'buyerName': buyerName.trim().isEmpty ? 'Pembeli' : buyerName.trim(),
       'participants': FieldValue.arrayUnion([uid]),
       'lastMessage': cleanText,
