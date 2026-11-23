@@ -182,8 +182,8 @@ class ChatService {
     return currentUserName;
   }
 
-  /// Mencari UID akun penjual berdasarkan nama toko / danus di Firestore.
   /// Mengecek koleksi `users` dan `tenants` agar cocok meskipun nama toko ditulis berbeda kapitalisasi.
+  /// Mencari UID akun penjual berdasarkan nama toko / danus di Firestore.
   Future<String> resolveSellerIdByStoreName(String storeName) async {
     final cleanStore = storeName.trim();
     if (cleanStore.isEmpty) return 'seller_unknown';
@@ -191,6 +191,24 @@ class ChatService {
     final lowerStore = cleanStore.toLowerCase();
 
     try {
+      // 1. Cek koleksi `tenants` terlebih dahulu (karena namaToko disimpan di sini)
+      final tenantsSnap = await _db.collection('tenants').limit(200).get();
+      for (final doc in tenantsSnap.docs) {
+        final data = doc.data();
+        final tName = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (tName == lowerStore) {
+          final ownerId =
+              (data['uid'] ?? data['ownerId'] ?? data['userId'] ?? doc.id)
+                  .toString()
+                  .trim();
+          if (ownerId.isNotEmpty) return ownerId;
+        }
+      }
+
+      // 2. Fallback cek koleksi `users`
       final snapshot = await _db.collection('users').limit(200).get();
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -202,23 +220,6 @@ class ChatService {
             .toLowerCase();
         if (s1 == lowerStore || s2 == lowerStore || s3 == lowerStore) {
           return doc.id;
-        }
-      }
-
-      // Fallback cek koleksi `tenants` jika ada field ownerId / userId / uid
-      final tenantsSnap = await _db.collection('tenants').limit(200).get();
-      for (final doc in tenantsSnap.docs) {
-        final data = doc.data();
-        final tName = (data['namaToko'] ?? data['storeName'] ?? '')
-            .toString()
-            .trim()
-            .toLowerCase();
-        if (tName == lowerStore) {
-          final ownerId =
-              (data['ownerId'] ?? data['userId'] ?? data['uid'] ?? '')
-                  .toString()
-                  .trim();
-          if (ownerId.isNotEmpty) return ownerId;
         }
       }
     } catch (_) {}
@@ -262,6 +263,34 @@ class ChatService {
     final storeKeys = <String>{uid};
 
     try {
+      // Cek dokumen `tenants/{uid}` secara langsung
+      final myTenantDoc = await _db.collection('tenants').doc(uid).get();
+      if (myTenantDoc.exists) {
+        final tData = myTenantDoc.data() ?? {};
+        for (final key in [tData['namaToko'], tData['storeName']]) {
+          final raw = (key ?? '').toString().trim();
+          if (raw.isNotEmpty) {
+            storeKeys.add('seller_' + _slug(raw));
+          }
+        }
+      }
+
+      // Cek juga jika ada dokumen tenants dengan field `uid == uid`
+      final tenantsByUid = await _db
+          .collection('tenants')
+          .where('uid', isEqualTo: uid)
+          .get();
+      for (final doc in tenantsByUid.docs) {
+        final tData = doc.data();
+        for (final key in [tData['namaToko'], tData['storeName']]) {
+          final raw = (key ?? '').toString().trim();
+          if (raw.isNotEmpty) {
+            storeKeys.add('seller_' + _slug(raw));
+          }
+        }
+      }
+
+      // Cek koleksi `users/{uid}`
       final userDoc = await _db.collection('users').doc(uid).get();
       if (userDoc.exists) {
         final uData = userDoc.data() ?? {};
@@ -279,39 +308,23 @@ class ChatService {
       }
     } catch (_) {}
 
-    await for (final snapshot
-        in _db
-            .collection('chats')
-            .where('participants', arrayContains: uid)
-            .snapshots()) {
-      final byId = <String, DocumentSnapshot<Map<String, dynamic>>>{};
-      for (final doc in snapshot.docs) {
-        byId[doc.id] = doc;
-      }
-
-      // Ambil juga dokumen lama yang sellerId-nya masih memakai slug nama toko
-      try {
-        for (final legacySellerId in storeKeys) {
-          if (legacySellerId == uid) continue;
-          final legacySnap = await _db
-              .collection('chats')
-              .where('sellerId', isEqualTo: legacySellerId)
-              .get();
-          for (final doc in legacySnap.docs) {
-            byId[doc.id] = doc;
-          }
-        }
-      } catch (_) {}
-
-      final list = byId.values
+    await for (final snapshot in _db.collection('chats').snapshots()) {
+      final list = snapshot.docs
           .where((doc) {
-            final data = doc.data() ?? {};
+            final data = doc.data();
             final sId = (data['sellerId'] ?? '').toString().trim();
             final bId = (data['buyerId'] ?? '').toString().trim();
+            final participants = (data['participants'] as List<dynamic>? ?? [])
+                .map((e) => e.toString().trim())
+                .toList();
             final hasBuyerMsg = data['hasBuyerMessage'] == true;
             final lastMsg = (data['lastMessage'] ?? '').toString().trim();
 
-            final matchesSeller = sId == uid || storeKeys.contains(sId);
+            final matchesSeller =
+                sId == uid ||
+                participants.contains(uid) ||
+                storeKeys.contains(sId);
+
             return matchesSeller &&
                 bId.isNotEmpty &&
                 bId != uid &&

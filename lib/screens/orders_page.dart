@@ -24,6 +24,7 @@ class _OrdersPageState extends State<OrdersPage> {
     'Untuk Diulas',
     'Pengembalian',
     'Pesanan Selesai',
+    'Ditolak',
   ];
 
   @override
@@ -362,13 +363,18 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusLower = order.status.toLowerCase();
+    final isRejected = statusLower == 'ditolak';
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: isRejected
+              ? Colors.redAccent.withValues(alpha: 0.35)
+              : kDarkGreen.withValues(alpha: 0.12),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,14 +382,33 @@ class _OrderCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                order.status,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: kDarkGreen,
-                ),
-              ),
+              isRejected
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Ditolak Penjual',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      order.status,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: kDarkGreen,
+                      ),
+                    ),
               Text(
                 '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
                 style: TextStyle(
@@ -463,7 +488,25 @@ class _OrderCard extends StatelessWidget {
               ),
             ],
           ),
-          if (statusLower == 'perlu dibayar' ||
+          if (isRejected) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'Pesanan ini ditolak oleh penjual.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ] else if (statusLower == 'perlu dibayar' ||
               statusLower == 'akan diterima' ||
               statusLower == 'untuk diulas' ||
               statusLower == 'pengembalian') ...[

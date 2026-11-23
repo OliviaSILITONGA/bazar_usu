@@ -156,10 +156,57 @@ class OrderState {
     });
   }
 
+  Future<String> _resolveSellerIdFromTenants(OrderData order) async {
+    final currentSellerId = order.sellerId.trim();
+    if (currentSellerId.isNotEmpty &&
+        !currentSellerId.toLowerCase().startsWith('seller_')) {
+      return currentSellerId;
+    }
+
+    final targetNames = <String>{
+      ...order.items
+          .map((item) => item.storeName.trim().toLowerCase())
+          .where((name) => name.isNotEmpty),
+      if (currentSellerId.toLowerCase().startsWith('seller_'))
+        currentSellerId
+            .toLowerCase()
+            .replaceFirst('seller_', '')
+            .replaceAll('_', ' '),
+    };
+
+    if (targetNames.isEmpty) return currentSellerId;
+
+    try {
+      final tenantsSnap = await FirebaseFirestore.instance
+          .collection('tenants')
+          .limit(200)
+          .get();
+      for (final doc in tenantsSnap.docs) {
+        final data = doc.data();
+        final storeTitle = (data['namaToko'] ?? data['storeName'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (storeTitle.isNotEmpty && targetNames.contains(storeTitle)) {
+          final ownerUid =
+              (data['uid'] ?? data['ownerId'] ?? data['userId'] ?? doc.id)
+                  .toString()
+                  .trim();
+          if (ownerUid.isNotEmpty) return ownerUid;
+        }
+      }
+    } catch (_) {}
+
+    return currentSellerId;
+  }
+
   // Simpan pesanan baru ke Firestore
   Future<void> addOrder(OrderData order) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw 'Sesi login tidak ditemukan';
+
+    final resolvedSellerId = await _resolveSellerIdFromTenants(order);
+    final buyerName = FirebaseAuth.instance.currentUser?.displayName?.trim();
 
     final docRef = order.id.isNotEmpty
         ? FirebaseFirestore.instance.collection('orders').doc(order.id)
@@ -169,8 +216,11 @@ class OrderState {
       ...order.toMap(),
       'buyerId': uid,
       'userId': uid,
+      if (buyerName != null && buyerName.isNotEmpty) 'buyerName': buyerName,
+      'sellerId': resolvedSellerId,
+      'tenantId': resolvedSellerId,
       'createdAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
   }
 
   // Perbarui status pesanan di Firestore

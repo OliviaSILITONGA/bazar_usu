@@ -42,35 +42,78 @@ class _SellerHomePageState extends State<SellerHomePage> {
   }
 
   // Menghitung produk milik penjual dari koleksi 'products'
-  Stream<int> _activeProductsCountStream(String uid) {
+  Stream<int> _activeProductsCountStream(String uid, String? storeName) {
+    final cleanStore = (storeName ?? '').trim().toLowerCase();
     return FirebaseFirestore.instance.collection('products').snapshots().map((
       snapshot,
     ) {
       return snapshot.docs.where((doc) {
         final data = doc.data();
         final ownerId =
-            data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '';
-        return ownerId == uid;
+            (data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '')
+                .toString()
+                .trim();
+        final itemStore = (data['storeName'] ?? data['namaToko'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        return ownerId == uid ||
+            (cleanStore.isNotEmpty && itemStore == cleanStore);
       }).length;
     });
   }
 
-  // Menghitung pesanan berstatus baru/pending milik penjual dari koleksi 'orders'
-  Stream<int> _newOrdersCountStream(String uid) {
+  // Pesanan yang sudah diterima penjual (status 'Akan Diterima' / 'Diproses')
+  bool _isAcceptedOrderStatus(String rawStatus) {
+    final s = rawStatus.trim().toLowerCase();
+    return s == 'akan diterima' || s == 'diproses';
+  }
+
+  bool _matchesSellerOrder(
+    Map<String, dynamic> data,
+    String uid,
+    String? storeName,
+  ) {
+    final ownerId = (data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '')
+        .toString()
+        .trim();
+    if (ownerId == uid) return true;
+
+    final cleanStore = (storeName ?? '').trim().toLowerCase();
+    if (cleanStore.isEmpty) return false;
+
+    final orderStore = (data['storeName'] ?? data['namaToko'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (orderStore == cleanStore) return true;
+
+    final rawItems = data['items'];
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map) {
+          final itemStore = (item['storeName'] ?? item['namaToko'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          if (itemStore == cleanStore) return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Menghitung pesanan masuk milik penjual yang sudah DITERIMA dari koleksi 'orders'
+  Stream<int> _acceptedOrdersCountStream(String uid, String? storeName) {
     return FirebaseFirestore.instance.collection('orders').snapshots().map((
       snapshot,
     ) {
       return snapshot.docs.where((doc) {
         final data = doc.data();
-        final ownerId =
-            data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '';
-        final status = (data['status'] ?? '').toString().toLowerCase();
-        final isNew =
-            status == 'baru' ||
-            status == 'pending' ||
-            status == 'menunggu' ||
-            status == 'menunggu konfirmasi';
-        return ownerId == uid && isNew;
+        final status = (data['status'] ?? '').toString();
+        return _matchesSellerOrder(data, uid, storeName) &&
+            _isAcceptedOrderStatus(status);
       }).length;
     });
   }
@@ -85,10 +128,12 @@ class _SellerHomePageState extends State<SellerHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ---------- Header Profil Toko (Dari Firestore 'tenants') ----------
-              if (_tenantStream == null)
-                _buildHeader('Toko Kamu', null)
-              else
+              // ---------- Header Profil Toko & Statistik (Dari Firestore 'tenants') ----------
+              if (_uid == null || _tenantStream == null) ...[
+                _buildHeader('Toko Kamu', null),
+                const SizedBox(height: 20),
+                _buildStatsRow(0, 0),
+              ] else
                 StreamBuilder<TenantMap?>(
                   stream: _tenantStream,
                   builder: (context, snapshot) {
@@ -97,33 +142,43 @@ class _SellerHomePageState extends State<SellerHomePage> {
                         (data?['namaToko'] ?? data?['storeName'] ?? 'Toko Kamu')
                             .toString()
                             .trim();
+                    final displayStoreName = namaToko.isNotEmpty
+                        ? namaToko
+                        : 'Toko Kamu';
                     final photoBytes = _decodePhoto(
                       data?['fotoBase64'] as String?,
                     );
 
-                    return _buildHeader(
-                      namaToko.isNotEmpty ? namaToko : 'Toko Kamu',
-                      photoBytes,
-                    );
-                  },
-                ),
-              const SizedBox(height: 20),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(displayStoreName, photoBytes),
+                        const SizedBox(height: 20),
+                        StreamBuilder<int>(
+                          stream: _activeProductsCountStream(
+                            _uid!,
+                            displayStoreName,
+                          ),
+                          builder: (context, prodSnapshot) {
+                            final productCount = prodSnapshot.data ?? 0;
 
-              // ---------- Statistik Produk Aktif & Pesanan Baru (Hanya Tampilan) ----------
-              if (_uid == null)
-                _buildStatsRow(0, 0)
-              else
-                StreamBuilder<int>(
-                  stream: _activeProductsCountStream(_uid!),
-                  builder: (context, prodSnapshot) {
-                    final productCount = prodSnapshot.data ?? 0;
-
-                    return StreamBuilder<int>(
-                      stream: _newOrdersCountStream(_uid!),
-                      builder: (context, orderSnapshot) {
-                        final newOrderCount = orderSnapshot.data ?? 0;
-                        return _buildStatsRow(productCount, newOrderCount);
-                      },
+                            return StreamBuilder<int>(
+                              stream: _acceptedOrdersCountStream(
+                                _uid!,
+                                displayStoreName,
+                              ),
+                              builder: (context, orderSnapshot) {
+                                final acceptedOrderCount =
+                                    orderSnapshot.data ?? 0;
+                                return _buildStatsRow(
+                                  productCount,
+                                  acceptedOrderCount,
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
                     );
                   },
                 ),
