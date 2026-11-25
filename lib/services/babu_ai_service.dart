@@ -8,6 +8,11 @@ class BabuProductItem {
   final String id;
   final String name;
   final int price;
+  final int originalPrice;
+  final double rating;
+  final int reviewCount;
+  final String prepTime;
+  final int kcal;
   final String sellerId;
   final String sellerName;
   final String category;
@@ -23,6 +28,11 @@ class BabuProductItem {
     required this.id,
     required this.name,
     required this.price,
+    this.originalPrice = 0,
+    this.rating = 4.8,
+    this.reviewCount = 0,
+    this.prepTime = '10-15 mnt',
+    this.kcal = 0,
     required this.sellerId,
     required this.sellerName,
     this.category = '',
@@ -34,6 +44,9 @@ class BabuProductItem {
     this.aiReason = '',
     this.matchScore = 0,
   });
+
+  int get effectiveOriginalPrice =>
+      originalPrice > price ? originalPrice : price;
 
   String get formattedPrice {
     final s = price.toString().replaceAllMapped(
@@ -52,6 +65,11 @@ class BabuProductItem {
       id: id,
       name: name,
       price: price,
+      originalPrice: originalPrice,
+      rating: rating,
+      reviewCount: reviewCount,
+      prepTime: prepTime,
+      kcal: kcal,
       sellerId: sellerId,
       sellerName: sellerName,
       category: category,
@@ -99,7 +117,21 @@ class BabuAiService {
     );
   }
 
-  // ==================== 1. AUTO-TAGGING ATRIBUT PRODUK ====================
+  int _parseInt(dynamic value, {int fallback = 0}) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is num) return value.round();
+    final digitsOnly = value.toString().replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(digitsOnly) ?? fallback;
+  }
+
+  double _parseDouble(dynamic value, {double fallback = 4.8}) {
+    if (value == null) return fallback;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? fallback;
+  }
+
   List<String> inferProductAttributes({
     required String name,
     required String description,
@@ -115,7 +147,6 @@ class BabuAiService {
 
     final raw = '$name $description $category'.toLowerCase();
 
-    // Kategori
     if (RegExp(r'(es|teh|kopi|jus|boba|minum|susu|matcha|thai tea|lemon|sirup)')
         .hasMatch(raw)) {
       tags.add('minuman');
@@ -123,7 +154,6 @@ class BabuAiService {
       tags.add('makanan');
     }
 
-    // Rasa
     if (RegExp(
       r'(pedas|geprek|seblak|sambal|balado|mercon|chili|mala|spicy|hot)',
     ).hasMatch(raw)) {
@@ -144,14 +174,12 @@ class BabuAiService {
       tags.add('asam');
     }
 
-    // Rentang harga (ramah anak kos)
     if (price > 0 && price <= 10000) {
       tags.addAll(['murah', 'hemat', 'anak kos', 'under 10k']);
     } else if (price <= 15000) {
       tags.addAll(['terjangkau', 'anak kos', 'under 15k']);
     }
 
-    // Tema/jenis populer
     if (RegExp(r'(korea|mentai|tteokbokki|corndog|kimbap|ramyeon|korean)')
         .hasMatch(raw)) {
       tags.addAll(['korea', 'viral']);
@@ -163,7 +191,6 @@ class BabuAiService {
     return tags.toList();
   }
 
-  // ==================== 2. AMBIL KATALOG REAL-TIME DARI FIRESTORE ====================
   Future<List<BabuProductItem>> fetchCatalogFromFirestore() async {
     final tenantMap = <String, Map<String, dynamic>>{};
     try {
@@ -191,10 +218,20 @@ class BabuAiService {
           .trim();
       if (name.isEmpty) continue;
 
-      final rawPrice = data['price'] ?? data['harga'] ?? 0;
-      final price = rawPrice is int
-          ? rawPrice
-          : int.tryParse(rawPrice.toString()) ?? 0;
+      final discountOrMainPrice = _parseInt(
+        data['discountPrice'] ??
+            data['hargaDiskon'] ??
+            data['price'] ??
+            data['harga'],
+      );
+      final rawOriginalPrice = _parseInt(
+        data['originalPrice'] ??
+            data['hargaAsli'] ??
+            data['price'] ??
+            data['harga'],
+        fallback: discountOrMainPrice,
+      );
+
       final sellerId =
           (data['sellerId'] ?? data['tenantId'] ?? data['uid'] ?? '')
               .toString()
@@ -235,6 +272,18 @@ class BabuAiService {
               .trim();
       final isActive =
           (data['isActive'] ?? tenantInfo?['isActive'] ?? true) == true;
+      final rating = _parseDouble(
+        data['rating'] ?? tenantInfo?['rating'],
+        fallback: 4.8,
+      );
+      final reviewCount = _parseInt(
+        data['reviewCount'] ?? data['jumlahUlasan'],
+      );
+      final prepTime =
+          (data['prepTime'] ?? data['estimasiWaktu'] ?? '10-15 mnt')
+              .toString()
+              .trim();
+      final kcal = _parseInt(data['kcal'] ?? data['kalori']);
 
       final rawTags = data['tags'] is List
           ? (data['tags'] as List).map((e) => e.toString()).toList()
@@ -244,7 +293,7 @@ class BabuAiService {
         name: name,
         description: description,
         category: category,
-        price: price,
+        price: discountOrMainPrice,
         explicitTags: rawTags,
       );
 
@@ -252,7 +301,12 @@ class BabuAiService {
         BabuProductItem(
           id: doc.id,
           name: name,
-          price: price,
+          price: discountOrMainPrice,
+          originalPrice: rawOriginalPrice,
+          rating: rating,
+          reviewCount: reviewCount,
+          prepTime: prepTime.isEmpty ? '10-15 mnt' : prepTime,
+          kcal: kcal,
           sellerId: sellerId,
           sellerName: sellerName,
           category: category,
@@ -268,7 +322,6 @@ class BabuAiService {
     return items;
   }
 
-  // ==================== 3. PROFIL PREFERENSI & RIWAYAT USER ====================
   Future<Map<String, dynamic>> _loadUserPreferenceContext() async {
     final uid = _uid;
     if (uid == null) {
@@ -347,9 +400,8 @@ class BabuAiService {
     };
   }
 
-  // ==================== 4. LOG INTERAKSI (CONTINUOUS IMPROVEMENT) ====================
   Future<void> logInteraction({
-    required String actionType, // 'search' | 'click' | 'add_to_cart'
+    required String actionType,
     String query = '',
     BabuProductItem? product,
     int resultCount = 0,
@@ -371,7 +423,6 @@ class BabuAiService {
     } catch (_) {}
   }
 
-  // ==================== 5. REKOMENDASI AWAL PERSONALISASI ====================
   Future<List<BabuProductItem>> getPersonalizedInitialRecommendations() async {
     final catalog = await fetchCatalogFromFirestore();
     if (catalog.isEmpty) return [];
@@ -390,7 +441,6 @@ class BabuAiService {
     return scored.take(4).toList();
   }
 
-  // ==================== 6. MESIN REKOMENDASI BABU VIA FIREBASE AI LOGIC ====================
   Future<BabuRecommendationResult> searchWithBabu(String userQuery) async {
     final cleanQuery = userQuery.trim();
     final catalog = await fetchCatalogFromFirestore();
@@ -419,9 +469,7 @@ class BabuAiService {
         );
         return aiResult;
       }
-    } catch (_) {
-      // Fallback ke ranking lokal bila koneksi/kuota bermasalah
-    }
+    } catch (_) {}
 
     final fallbackResults = _rankLocally(
       query: cleanQuery,

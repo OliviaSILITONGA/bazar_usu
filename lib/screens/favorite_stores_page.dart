@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
@@ -6,6 +7,25 @@ import 'store_detail_page.dart';
 
 class FavoriteStoresPage extends StatelessWidget {
   const FavoriteStoresPage({super.key});
+
+  Stream<Map<String, int>> _productCountByStoreStream() {
+    return FirebaseFirestore.instance.collection('products').snapshots().map((
+      snapshot,
+    ) {
+      final counts = <String, int>{};
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final storeName = (data['storeName'] ?? data['namaToko'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if (storeName.isNotEmpty) {
+          counts[storeName] = (counts[storeName] ?? 0) + 1;
+        }
+      }
+      return counts;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,15 +53,32 @@ class FavoriteStoresPage extends StatelessWidget {
                     return const _EmptyFavorites();
                   }
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: stores.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) =>
-                        _FavoriteStoreTile(profile: stores[index]),
+                  return StreamBuilder<Map<String, int>>(
+                    stream: _productCountByStoreStream(),
+                    builder: (context, countSnapshot) {
+                      final productCounts =
+                          countSnapshot.data ?? const <String, int>{};
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        itemCount: stores.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final profile = stores[index];
+                          final key = profile.name.trim().toLowerCase();
+                          final liveCount =
+                              productCounts[key] ?? profile.products.length;
+
+                          return _FavoriteStoreTile(
+                            profile: profile,
+                            productCount: liveCount,
+                          );
+                        },
+                      );
+                    },
                   );
                 },
               ),
@@ -90,7 +127,8 @@ class _TopBar extends StatelessWidget {
 // ==================== ITEM TOKO FAVORIT ====================
 class _FavoriteStoreTile extends StatelessWidget {
   final StoreProfileData profile;
-  const _FavoriteStoreTile({required this.profile});
+  final int productCount;
+  const _FavoriteStoreTile({required this.profile, required this.productCount});
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +197,7 @@ class _FavoriteStoreTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '${profile.products.length} Produk',
+                        '$productCount Produk',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black54,

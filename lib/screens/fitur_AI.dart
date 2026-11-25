@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/babu_ai_service.dart';
 import '../services/cart_state.dart';
+import 'product_detail_page.dart';
 
 class FiturAI extends StatefulWidget {
   const FiturAI({super.key});
@@ -88,6 +89,38 @@ class _FiturAIState extends State<FiturAI> {
   void _selectMood(String moodQuery) {
     _searchController.text = moodQuery;
     _runSearch(moodQuery);
+  }
+
+  void _openProductDetail(BabuProductItem product) {
+    BabuAiService.instance.logInteraction(
+      actionType: 'click',
+      query: _lastQuery,
+      product: product,
+    );
+
+    final desc = product.description.trim().isNotEmpty
+        ? product.description.trim()
+        : (product.aiReason.trim().isNotEmpty
+              ? '${product.name} dari ${product.sellerName} (${product.facultyOrLocation}). ${product.aiReason}.'
+              : 'Menu ${product.name} dari bazar ${product.sellerName} di ${product.facultyOrLocation}.');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailPage(
+          name: product.name,
+          storeName: product.sellerName,
+          originalPrice: product.effectiveOriginalPrice,
+          discountPrice: product.price,
+          rating: product.rating,
+          reviewCount: product.reviewCount,
+          prepTime: product.prepTime,
+          kcal: product.kcal,
+          description: desc,
+          image: product.image,
+        ),
+      ),
+    );
   }
 
   void _handleAddToCart(BabuProductItem product) {
@@ -207,6 +240,7 @@ class _FiturAIState extends State<FiturAI> {
                 else
                   _RecommendationGrid(
                     products: _results,
+                    onProductTap: _openProductDetail,
                     onAddToCart: _handleAddToCart,
                   ),
                 const SizedBox(height: 16),
@@ -230,6 +264,7 @@ class _FiturAIState extends State<FiturAI> {
                 else
                   _RecommendationGrid(
                     products: _initialRecommendations,
+                    onProductTap: _openProductDetail,
                     onAddToCart: _handleAddToCart,
                   ),
                 const SizedBox(height: 16),
@@ -555,10 +590,12 @@ class _SectionTitle extends StatelessWidget {
 // ==================== HASIL REKOMENDASI ====================
 class _RecommendationGrid extends StatelessWidget {
   final List<BabuProductItem> products;
+  final ValueChanged<BabuProductItem> onProductTap;
   final ValueChanged<BabuProductItem> onAddToCart;
 
   const _RecommendationGrid({
     required this.products,
+    required this.onProductTap,
     required this.onAddToCart,
   });
 
@@ -572,7 +609,13 @@ class _RecommendationGrid extends StatelessWidget {
       crossAxisSpacing: 14,
       childAspectRatio: 0.70,
       children: products
-          .map((p) => _ProductCard(data: p, onAddTap: () => onAddToCart(p)))
+          .map(
+            (p) => _ProductCard(
+              data: p,
+              onCardTap: () => onProductTap(p),
+              onAddTap: () => onAddToCart(p),
+            ),
+          )
           .toList(),
     );
   }
@@ -580,9 +623,14 @@ class _RecommendationGrid extends StatelessWidget {
 
 class _ProductCard extends StatelessWidget {
   final BabuProductItem data;
+  final VoidCallback onCardTap;
   final VoidCallback onAddTap;
 
-  const _ProductCard({required this.data, required this.onAddTap});
+  const _ProductCard({
+    required this.data,
+    required this.onCardTap,
+    required this.onAddTap,
+  });
 
   Uint8List? _decodeBase64(String raw) {
     try {
@@ -640,20 +688,15 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        BabuAiService.instance.logInteraction(
-          actionType: 'click',
-          product: data,
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kDarkGreen.withValues(alpha: 0.15)),
-        ),
-        clipBehavior: Clip.antiAlias,
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onCardTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
