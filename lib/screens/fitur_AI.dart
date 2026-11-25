@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/babu_ai_service.dart';
+import '../services/cart_state.dart';
 
 class FiturAI extends StatefulWidget {
   const FiturAI({super.key});
@@ -13,54 +18,34 @@ class _FiturAIState extends State<FiturAI> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   bool _hasSearched = false;
-  List<_ProductData> _results = [];
-  String _lastQuery = '';
+  bool _isLoadingInitial = true;
+  bool _usedGeminiApi = false;
 
-  // ==================== DATASET SIMULASI ====================
-  static const List<_ProductData> _allProducts = [
-    _ProductData(
-      name: 'Dinsum Mentai',
-      price: 'Rp 15.000',
-      seller: 'AIF (Accounting Intelligence Fair)',
-      image: 'assets/products/DINSUM.jpg',
-      keywords: ['korea', 'viral', 'asam', 'manis', 'pedas'],
-    ),
-    _ProductData(
-      name: 'Taiso (Tahu isi Bakso)',
-      price: 'Rp 10.000',
-      seller: 'KMK Teknik Kimia',
-      image: 'assets/products/TAISO.webp',
-      keywords: ['murah', 'anak kos', 'gurih', 'asin'],
-    ),
-    _ProductData(
-      name: 'Ayam Geprek Mozzarella',
-      price: 'Rp 18.000',
-      seller: 'Geprek Juara',
-      image: 'assets/products/ayam_penyet.png',
-      keywords: ['pedas', 'nampol', 'ayam', 'keju'],
-    ),
-    _ProductData(
-      name: 'Teh Manis Dingin',
-      price: 'Rp 5.000',
-      seller: 'Kedai Kak Wati',
-      image: 'assets/products/teh_manis_dingin.png',
-      keywords: ['manis', 'dingin', 'murah', 'anak kos', 'minuman'],
-    ),
-    _ProductData(
-      name: 'Donat Coklat',
-      price: 'Rp 3.000',
-      seller: 'Toko Roti',
-      image: 'assets/products/donat_coklat.png',
-      keywords: ['manis', 'murah', 'anak kos', 'coklat', 'jajanan'],
-    ),
-    _ProductData(
-      name: 'Kue Kering',
-      price: 'Rp 8.000',
-      seller: 'Olip Bakery',
-      image: 'assets/products/kue_kering.png',
-      keywords: ['manis', 'renyah', 'jajanan'],
-    ),
-  ];
+  List<BabuProductItem> _initialRecommendations = [];
+  List<BabuProductItem> _results = [];
+  String _lastQuery = '';
+  String _aiSummary = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialRecommendations();
+  }
+
+  Future<void> _loadInitialRecommendations() async {
+    try {
+      final recs = await BabuAiService.instance
+          .getPersonalizedInitialRecommendations();
+      if (!mounted) return;
+      setState(() {
+        _initialRecommendations = recs;
+        _isLoadingInitial = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingInitial = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -68,7 +53,7 @@ class _FiturAIState extends State<FiturAI> {
     super.dispose();
   }
 
-  // ==================== LOGIKA PENCARIAN (SIMULASI AI) ====================
+  // ==================== LOGIKA PENCARIAN AI BABU ====================
   Future<void> _runSearch(String query) async {
     if (query.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,42 +65,52 @@ class _FiturAIState extends State<FiturAI> {
       return;
     }
 
-    FocusScope.of(context).unfocus(); // tutup keyboard
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _isSearching = true;
       _hasSearched = false;
     });
 
-    // Simulasi delay "BABU sedang berpikir" supaya terasa seperti AI
-    await Future.delayed(const Duration(milliseconds: 700));
+    final response = await BabuAiService.instance.searchWithBabu(query);
     if (!mounted) return;
 
-    final queryWords = query
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), '') // buang emoji/simbol
-        .split(' ')
-        .where((w) => w.trim().isNotEmpty)
-        .toList();
-
-    final matched = _allProducts.where((product) {
-      final productText =
-          ('${product.name} ${product.seller} ${product.keywords.join(' ')}')
-              .toLowerCase();
-      return queryWords.any((word) => productText.contains(word));
-    }).toList();
-
     setState(() {
-      _results = matched;
+      _results = response.products;
+      _aiSummary = response.summary;
+      _usedGeminiApi = response.usedGeminiApi;
       _isSearching = false;
       _hasSearched = true;
-      _lastQuery = query;
+      _lastQuery = query.trim();
     });
   }
 
   void _selectMood(String moodQuery) {
     _searchController.text = moodQuery;
     _runSearch(moodQuery);
+  }
+
+  void _handleAddToCart(BabuProductItem product) {
+    CartState.instance.addItem(
+      storeName: product.sellerName,
+      description: product.name,
+      price: product.price,
+      image: product.image.isEmpty ? null : product.image,
+    );
+
+    BabuAiService.instance.logInteraction(
+      actionType: 'add_to_cart',
+      query: _lastQuery,
+      product: product,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${product.name} ditambahkan ke keranjang!'),
+        backgroundColor: kDarkGreen,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -155,16 +150,65 @@ class _FiturAIState extends State<FiturAI> {
               if (_isSearching) ...[
                 const _LoadingState(),
               ] else if (_hasSearched) ...[
-                _SectionTitle(
-                  title: _results.isEmpty
-                      ? '😢 Tidak Ditemukan'
-                      : '💡 Hasil Rekomendasi Pintar',
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SectionTitle(
+                        title: _results.isEmpty
+                            ? '😢 Tidak Ditemukan'
+                            : '💡 Hasil Rekomendasi Pintar',
+                      ),
+                    ),
+                    if (_results.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kLightGreen,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _usedGeminiApi ? 'Gemini AI' : 'BABU Smart',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: kDarkGreen,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+                if (_aiSummary.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kLightGreen.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: kDarkGreen.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Text(
+                      _aiSummary,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: kDarkGreen,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 if (_results.isEmpty)
                   _EmptyResultState(query: _lastQuery)
                 else
-                  _RecommendationGrid(products: _results),
+                  _RecommendationGrid(
+                    products: _results,
+                    onAddToCart: _handleAddToCart,
+                  ),
                 const SizedBox(height: 16),
                 if (_results.isNotEmpty)
                   Text(
@@ -179,7 +223,15 @@ class _FiturAIState extends State<FiturAI> {
               ] else ...[
                 const _SectionTitle(title: '💡 Rekomendasi Untukmu'),
                 const SizedBox(height: 14),
-                _RecommendationGrid(products: _allProducts.take(2).toList()),
+                if (_isLoadingInitial)
+                  const _LoadingState()
+                else if (_initialRecommendations.isEmpty)
+                  const _EmptyResultState(query: 'produk bazar')
+                else
+                  _RecommendationGrid(
+                    products: _initialRecommendations,
+                    onAddToCart: _handleAddToCart,
+                  ),
                 const SizedBox(height: 16),
                 Text(
                   'Ketik mood atau kriteria untuk mencari lebih spesifik ✨',
@@ -206,7 +258,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tombol kembali hanya muncul kalau memang ada halaman sebelumnya
     final canGoBack = Navigator.of(context).canPop();
 
     return Row(
@@ -367,7 +418,7 @@ class _MoodChips extends StatelessWidget {
 
   static const Map<String, String> _moods = {
     'Pedas 🌶️': 'pedas',
-    'Manis kayak kamu >‹': 'manis',
+    'Manis kayak kamu ><': 'manis',
     'Murah untuk anak kos 💰': 'murah anak kos',
   };
 
@@ -431,7 +482,7 @@ class _LoadingState extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'BABU sedang mencari rekomendasi...',
+            'BABU sedang menganalisis bazar & seleramu...',
             style: TextStyle(
               fontSize: 13,
               color: kDarkGreen.withValues(alpha: 0.75),
@@ -503,8 +554,13 @@ class _SectionTitle extends StatelessWidget {
 
 // ==================== HASIL REKOMENDASI ====================
 class _RecommendationGrid extends StatelessWidget {
-  final List<_ProductData> products;
-  const _RecommendationGrid({required this.products});
+  final List<BabuProductItem> products;
+  final ValueChanged<BabuProductItem> onAddToCart;
+
+  const _RecommendationGrid({
+    required this.products,
+    required this.onAddToCart,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -514,112 +570,170 @@ class _RecommendationGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 14,
       crossAxisSpacing: 14,
-      childAspectRatio: 0.78,
-      children: products.map((p) => _ProductCard(data: p)).toList(),
+      childAspectRatio: 0.70,
+      children: products
+          .map((p) => _ProductCard(data: p, onAddTap: () => onAddToCart(p)))
+          .toList(),
     );
   }
 }
 
-class _ProductData {
-  final String name;
-  final String price;
-  final String seller;
-  final String image;
-  final List<String> keywords;
-  const _ProductData({
-    required this.name,
-    required this.price,
-    required this.seller,
-    required this.image,
-    required this.keywords,
-  });
-}
-
 class _ProductCard extends StatelessWidget {
-  final _ProductData data;
-  const _ProductCard({required this.data});
+  final BabuProductItem data;
+  final VoidCallback onAddTap;
+
+  const _ProductCard({required this.data, required this.onAddTap});
+
+  Uint8List? _decodeBase64(String raw) {
+    try {
+      final clean = raw.contains(',') ? raw.split(',').last : raw;
+      return base64Decode(clean);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildProductImage() {
+    final src = data.image.trim();
+    if (src.isEmpty) {
+      return _fallbackImage();
+    }
+    if (src.startsWith('assets/')) {
+      return Image.asset(
+        src,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _fallbackImage(),
+      );
+    }
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return Image.network(
+        src,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _fallbackImage(),
+      );
+    }
+    final bytes = _decodeBase64(src);
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _fallbackImage(),
+      );
+    }
+    return _fallbackImage();
+  }
+
+  Widget _fallbackImage() {
+    return Container(
+      width: double.infinity,
+      color: kLightGreen,
+      child: Icon(
+        Icons.fastfood_outlined,
+        color: kDarkGreen.withValues(alpha: 0.45),
+        size: 32,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kDarkGreen.withValues(alpha: 0.15)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Image.asset(
-              data.image,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                width: double.infinity,
-                color: kLightGreen,
-                child: Icon(
-                  Icons.image_outlined,
-                  color: kDarkGreen.withValues(alpha: 0.4),
-                  size: 32,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  data.name,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: kDarkGreen,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      data.price,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
+    return InkWell(
+      onTap: () {
+        BabuAiService.instance.logInteraction(
+          actionType: 'click',
+          product: data,
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kDarkGreen.withValues(alpha: 0.15)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildProductImage()),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen,
                     ),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: kLightGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: kDarkGreen.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        data.formattedPrice,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: kDarkGreen,
                         ),
                       ),
-                      child: const Icon(Icons.add, size: 16, color: kDarkGreen),
+                      GestureDetector(
+                        onTap: onAddTap,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: kLightGreen,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: kDarkGreen.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            size: 16,
+                            color: kDarkGreen,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    data.sellerName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: kDarkGreen.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (data.aiReason.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      data.aiReason,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: kDarkGreen.withValues(alpha: 0.65),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  data.seller,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: kDarkGreen.withValues(alpha: 0.7),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
