@@ -5,8 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/address_state.dart';
 import '../services/cart_state.dart';
 import '../services/order_state.dart';
+import 'saved_addresses_page.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<CartItem> items;
@@ -21,6 +23,10 @@ class CheckoutPage extends StatefulWidget {
 class _CheckoutPageState extends State<CheckoutPage> {
   int _selectedPayment = 0;
   bool _isSubmitting = false;
+  AddressData? _selectedAddress;
+  String? _selectedAddressId;
+
+  static const int _outsideUsuShippingFee = 3000;
 
   static const List<_PaymentOption> _payments = [
     _PaymentOption(icon: Icons.account_balance_wallet_outlined, label: 'Dana'),
@@ -31,8 +37,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _PaymentOption(icon: Icons.account_balance_outlined, label: 'Bank Lain'),
   ];
 
-  static const int _ongkir = 0;
-  int get _grandTotal => widget.total + _ongkir;
+  bool _isAroundUsu(AddressData address) {
+    final text = '${address.label} ${address.fullAddress}'.toLowerCase();
+    return RegExp(
+      r'(\busu\b|universitas sumatera utara|pembangunan|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|setia budi|tanjung sari|usu\s*kuala)',
+    ).hasMatch(text);
+  }
+
+  int _calculateShippingFee(AddressData address) {
+    return _isAroundUsu(address) ? 0 : _outsideUsuShippingFee;
+  }
+
+  String _shippingLabel(AddressData address) {
+    final fee = _calculateShippingFee(address);
+    return fee == 0 ? 'Gratis Ongkir (Area USU)' : 'Ongkir Rp3.000 (Luar USU)';
+  }
 
   String _formatPrice(int price) {
     return price.toString().replaceAllMapped(
@@ -41,7 +60,36 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Future<void> _buatPesanan() async {
+  Future<void> _openAddressPicker(
+    BuildContext context,
+    List<AddressData> addresses,
+    AddressData activeAddress,
+  ) async {
+    final chosen = await showModalBottomSheet<AddressData>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _AddressPickerSheet(
+        addresses: addresses,
+        activeAddress: activeAddress,
+      ),
+    );
+
+    if (chosen != null && mounted) {
+      setState(() {
+        _selectedAddress = chosen;
+        _selectedAddressId = chosen.id;
+      });
+    }
+  }
+
+  Future<void> _buatPesanan({
+    required AddressData activeAddress,
+    required int shippingFee,
+  }) async {
     if (_isSubmitting) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -60,28 +108,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     try {
       final firestore = FirebaseFirestore.instance;
 
-      // 1. Ambil profil pembeli (nama & alamat) dari koleksi users
-      String buyerName = user.displayName ?? 'Pembeli';
-      String buyerPhone = '';
-      String buyerAddress =
-          'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan';
-
-      final userDoc = await firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final uData = userDoc.data() ?? {};
-        final dbName = (uData['nama'] ?? uData['name'] ?? '').toString().trim();
-        final dbPhone = (uData['noHp'] ?? uData['phone'] ?? '')
-            .toString()
-            .trim();
-        final dbAddr = (uData['alamat'] ?? uData['address'] ?? '')
-            .toString()
-            .trim();
-        if (dbName.isNotEmpty) buyerName = dbName;
-        if (dbPhone.isNotEmpty) buyerPhone = dbPhone;
-        if (dbAddr.isNotEmpty) buyerAddress = dbAddr;
-      }
-
-      // 2. Kelompokkan item berdasarkan nama toko (agar jika multi-toko tetap rapi)
+      // Kelompokkan item berdasarkan nama toko (agar jika multi-toko tetap rapi)
       final Map<String, List<CartItem>> itemsByStore = {};
       for (final item in widget.items) {
         itemsByStore.putIfAbsent(item.storeName, () => []).add(item);
@@ -102,9 +129,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       final paymentMethod = _payments[_selectedPayment].label;
       final now = DateTime.now();
+      final storeEntries = itemsByStore.entries.toList();
 
-      // 3. Simpan setiap pesanan toko ke koleksi Firestore 'orders'
-      for (final entry in itemsByStore.entries) {
+      // Simpan setiap pesanan toko ke koleksi Firestore 'orders'
+      for (var i = 0; i < storeEntries.length; i++) {
+        final entry = storeEntries[i];
         final storeName = entry.key;
         final storeItems = entry.value;
         final sellerId = storeToSellerId[storeName.toLowerCase()] ?? '';
@@ -112,13 +141,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
           0,
           (sum, e) => sum + (e.price * e.quantity),
         );
+        final storeShipping = i == 0 ? shippingFee : 0;
+        final storeGrandTotal = storeSubtotal + storeShipping;
 
         final docRef = await firestore.collection('orders').add({
           'buyerId': user.uid,
           'userId': user.uid,
-          'buyerName': buyerName,
-          'buyerPhone': buyerPhone,
-          'buyerAddress': buyerAddress,
+          'buyerName': activeAddress.recipientName,
+          'buyerPhone': activeAddress.phone,
+          'buyerAddress': activeAddress.fullAddress,
+          'addressLabel': activeAddress.label,
+          'shippingFee': storeShipping,
           'sellerId': sellerId,
           'tenantId': sellerId,
           'namaToko': storeName,
@@ -134,14 +167,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 },
               )
               .toList(),
-          'total': storeSubtotal,
-          'totalPrice': storeSubtotal,
+          'total': storeGrandTotal,
+          'totalPrice': storeGrandTotal,
           'paymentMethod': paymentMethod,
           'status': 'Perlu dibayar',
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        // Sinkronkan juga ke state lokal OrderState
         OrderState.instance.addOrder(
           OrderData(
             id: docRef.id,
@@ -155,7 +187,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 )
                 .toList(),
-            total: storeSubtotal,
+            total: storeGrandTotal,
             status: 'Perlu dibayar',
             createdAt: now,
           ),
@@ -200,169 +232,268 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const _CheckoutHeader(title: 'Checkout'),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                children: [
-                  const _AddressCard(),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Produk Dipesan',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: kDarkGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...widget.items.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _CheckoutItemTile(
-                        item: item,
-                        formatPrice: _formatPrice,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.local_shipping_outlined,
-                          size: 18,
-                          color: kDarkGreen,
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: uid.isNotEmpty
+          ? FirebaseFirestore.instance.collection('users').doc(uid).snapshots()
+          : const Stream.empty(),
+      builder: (context, userSnap) {
+        final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
+        final fallbackName =
+            (userData['nama'] ??
+                    userData['name'] ??
+                    FirebaseAuth.instance.currentUser?.displayName ??
+                    'Pembeli')
+                .toString()
+                .trim();
+        final fallbackPhone = (userData['noHp'] ?? userData['phone'] ?? '')
+            .toString()
+            .trim();
+        final fallbackAddress =
+            (userData['alamat'] ??
+                    userData['address'] ??
+                    'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan, Sumatera Utara')
+                .toString()
+                .trim();
+
+        return StreamBuilder<List<AddressData>>(
+          stream: AddressState.instance.addressesStream(),
+          builder: (context, addrSnap) {
+            final savedAddresses = addrSnap.data ?? const <AddressData>[];
+
+            AddressData? effectiveSelected;
+            if (_selectedAddressId != null) {
+              for (final a in savedAddresses) {
+                if (a.id == _selectedAddressId) {
+                  effectiveSelected = a;
+                  break;
+                }
+              }
+            }
+            effectiveSelected ??= _selectedAddress;
+
+            AddressData? primaryAddress;
+            if (savedAddresses.isNotEmpty) {
+              primaryAddress = savedAddresses.firstWhere(
+                (a) => a.isPrimary,
+                orElse: () => savedAddresses.first,
+              );
+            }
+
+            final activeAddress =
+                effectiveSelected ??
+                primaryAddress ??
+                AddressData(
+                  label: 'Utama',
+                  recipientName: fallbackName.isEmpty
+                      ? 'Pembeli'
+                      : fallbackName,
+                  phone: fallbackPhone.isEmpty
+                      ? '(+62) 8xx-xxxx-xxxx'
+                      : fallbackPhone,
+                  fullAddress: fallbackAddress,
+                  isPrimary: true,
+                );
+
+            final shippingFee = _calculateShippingFee(activeAddress);
+            final grandTotal = widget.total + shippingFee;
+            final shippingText = _shippingLabel(activeAddress);
+
+            return Scaffold(
+              backgroundColor: kBg,
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    const _CheckoutHeader(title: 'Checkout'),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Estimasi tiba 1-2 hari • Gratis Ongkir',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: kDarkGreen.withValues(alpha: 0.8),
+                        children: [
+                          _AddressCard(
+                            address: activeAddress,
+                            onTap: () => _openAddressPicker(
+                              context,
+                              savedAddresses,
+                              activeAddress,
                             ),
                           ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: kDarkGreen.withValues(alpha: 0.4),
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _OrderSummary(
-                    subtotal: widget.total,
-                    formatPrice: _formatPrice,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Metode Pembayaran',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: kDarkGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: kDarkGreen.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Column(
-                      children: List.generate(_payments.length, (index) {
-                        final payment = _payments[index];
-                        final isSelected = index == _selectedPayment;
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () =>
-                                  setState(() => _selectedPayment = index),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Produk Dipesan',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ...widget.items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _CheckoutItemTile(
+                                item: item,
+                                formatPrice: _formatPrice,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _openAddressPicker(
+                              context,
+                              savedAddresses,
+                              activeAddress,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: kDarkGreen.withValues(alpha: 0.12),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      payment.icon,
-                                      size: 20,
-                                      color: kDarkGreen,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        payment.label,
-                                        style: const TextStyle(
-                                          fontSize: 13.5,
-                                          color: kDarkGreen,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.local_shipping_outlined,
+                                    size: 18,
+                                    color: kDarkGreen,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Estimasi tiba 1-2 hari • $shippingText',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: kDarkGreen.withValues(
+                                          alpha: 0.8,
                                         ),
                                       ),
                                     ),
-                                    Icon(
-                                      isSelected
-                                          ? Icons.check_circle
-                                          : Icons.radio_button_unchecked,
-                                      color: isSelected
-                                          ? kDarkGreen
-                                          : Colors.black26,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    color: kDarkGreen.withValues(alpha: 0.4),
+                                    size: 18,
+                                  ),
+                                ],
                               ),
                             ),
-                            if (index != _payments.length - 1)
-                              Divider(
-                                height: 1,
-                                indent: 50,
-                                color: kDarkGreen.withValues(alpha: 0.08),
+                          ),
+                          const SizedBox(height: 16),
+                          _OrderSummary(
+                            subtotal: widget.total,
+                            shippingFee: shippingFee,
+                            formatPrice: _formatPrice,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Metode Pembayaran',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: kDarkGreen.withValues(alpha: 0.12),
                               ),
-                          ],
-                        );
-                      }),
+                            ),
+                            child: Column(
+                              children: List.generate(_payments.length, (
+                                index,
+                              ) {
+                                final payment = _payments[index];
+                                final isSelected = index == _selectedPayment;
+                                return Column(
+                                  children: [
+                                    InkWell(
+                                      onTap: () => setState(
+                                        () => _selectedPayment = index,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 14,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              payment.icon,
+                                              size: 20,
+                                              color: kDarkGreen,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                payment.label,
+                                                style: const TextStyle(
+                                                  fontSize: 13.5,
+                                                  color: kDarkGreen,
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(
+                                              isSelected
+                                                  ? Icons.check_circle
+                                                  : Icons
+                                                        .radio_button_unchecked,
+                                              color: isSelected
+                                                  ? kDarkGreen
+                                                  : Colors.black26,
+                                              size: 20,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (index != _payments.length - 1)
+                                      Divider(
+                                        height: 1,
+                                        indent: 50,
+                                        color: kDarkGreen.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              }),
+                            ),
+                          ),
+                          const SizedBox(height: 100),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 100),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _CheckoutBottomBar(
-        total: _grandTotal,
-        itemCount: widget.items.length,
-        formatPrice: _formatPrice,
-        isSubmitting: _isSubmitting,
-        onBuatPesanan: _buatPesanan,
-      ),
+              bottomNavigationBar: _CheckoutBottomBar(
+                total: grandTotal,
+                itemCount: widget.items.length,
+                formatPrice: _formatPrice,
+                isSubmitting: _isSubmitting,
+                onBuatPesanan: () => _buatPesanan(
+                  activeAddress: activeAddress,
+                  shippingFee: shippingFee,
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -407,41 +538,26 @@ class _CheckoutHeader extends StatelessWidget {
   }
 }
 
-// ==================== ALAMAT ====================
+// ==================== KARTU ALAMAT ====================
 class _AddressCard extends StatelessWidget {
-  const _AddressCard();
+  final AddressData address;
+  final VoidCallback onTap;
+
+  const _AddressCard({required this.address, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: uid.isNotEmpty
-          ? FirebaseFirestore.instance.collection('users').doc(uid).snapshots()
-          : const Stream.empty(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-        final name =
-            (data['nama'] ??
-                    data['name'] ??
-                    FirebaseAuth.instance.currentUser?.displayName ??
-                    'Nama Pengguna')
-                .toString();
-        final phone = (data['noHp'] ?? data['phone'] ?? '(+62) 8xx-xxxx-xxxx')
-            .toString();
-        final address =
-            (data['alamat'] ??
-                    data['address'] ??
-                    'Jl. Dr. Mansyur, Padang Bulan Selayang I, Medan Selayang, Kota Medan, Sumatera Utara')
-                .toString();
-
-        return Container(
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: kDarkGreen.withValues(alpha: 0.12)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
-          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -455,7 +571,7 @@ class _AddressCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            name,
+                            address.recipientName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -467,17 +583,38 @@ class _AddressCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          phone,
+                          address.phone,
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Colors.black54,
                           ),
                         ),
+                        if (address.label.trim().isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kLightGreen,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              address.label,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: kDarkGreen,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      address,
+                      address.fullAddress,
                       style: TextStyle(
                         fontSize: 12.5,
                         color: kDarkGreen.withValues(alpha: 0.75),
@@ -494,8 +631,242 @@ class _AddressCard extends StatelessWidget {
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== BOTTOM SHEET PILIH ALAMAT ====================
+class _AddressPickerSheet extends StatelessWidget {
+  final List<AddressData> addresses;
+  final AddressData activeAddress;
+
+  const _AddressPickerSheet({
+    required this.addresses,
+    required this.activeAddress,
+  });
+
+  bool _isSameAddress(AddressData a, AddressData b) {
+    if (a.id != null && b.id != null && a.id!.isNotEmpty && b.id!.isNotEmpty) {
+      return a.id == b.id;
+    }
+    return a.recipientName == b.recipientName &&
+        a.phone == b.phone &&
+        a.fullAddress == b.fullAddress;
+  }
+
+  bool _isAroundUsu(AddressData address) {
+    final text = '${address.label} ${address.fullAddress}'.toLowerCase();
+    return RegExp(
+      r'(\busu\b|universitas sumatera utara|pembangunan|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|setia budi|tanjung sari|usu\s*kuala)',
+    ).hasMatch(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Pilih Alamat Pengiriman',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: kDarkGreen,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SavedAddressesPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.edit_location_alt_outlined, size: 17),
+                  label: const Text(
+                    'Kelola',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: TextButton.styleFrom(foregroundColor: kDarkGreen),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (addresses.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Column(
+                  children: [
+                    Text(
+                      'Belum ada alamat lain di daftar Alamat Tersimpan.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: kDarkGreen.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SavedAddressesPage(),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kDarkGreen,
+                        side: const BorderSide(color: kDarkGreen),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const Text('Buka Alamat Tersimpan'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: addresses.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final addr = addresses[index];
+                    final isSelected = _isSameAddress(addr, activeAddress);
+                    final freeOngkir = _isAroundUsu(addr);
+
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.pop(context, addr),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? kLightGreen.withValues(alpha: 0.45)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? kDarkGreen
+                                : kDarkGreen.withValues(alpha: 0.15),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: isSelected ? kDarkGreen : Colors.black38,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        addr.label.isEmpty
+                                            ? 'Alamat'
+                                            : addr.label,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: kDarkGreen,
+                                        ),
+                                      ),
+                                      if (addr.isPrimary) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 1.5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: kLightGreen,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Utama',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: kDarkGreen,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      const Spacer(),
+                                      Text(
+                                        freeOngkir
+                                            ? 'Gratis Ongkir'
+                                            : 'Ongkir Rp3.000',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: freeOngkir
+                                              ? kDarkGreen
+                                              : Colors.redAccent,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${addr.recipientName} (${addr.phone})',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    addr.fullAddress,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: kDarkGreen.withValues(alpha: 0.75),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -626,9 +997,14 @@ class _CheckoutItemTile extends StatelessWidget {
 // ==================== RINGKASAN PESANAN ====================
 class _OrderSummary extends StatelessWidget {
   final int subtotal;
+  final int shippingFee;
   final String Function(int) formatPrice;
 
-  const _OrderSummary({required this.subtotal, required this.formatPrice});
+  const _OrderSummary({
+    required this.subtotal,
+    required this.shippingFee,
+    required this.formatPrice,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -654,7 +1030,13 @@ class _OrderSummary extends StatelessWidget {
           _SummaryRow(
             label: 'Harga Produk',
             value: 'Rp${formatPrice(subtotal)}',
-            bold: true,
+          ),
+          const SizedBox(height: 6),
+          _SummaryRow(
+            label: 'Ongkos Kirim',
+            value: shippingFee == 0
+                ? 'Gratis'
+                : 'Rp${formatPrice(shippingFee)}',
           ),
         ],
       ),

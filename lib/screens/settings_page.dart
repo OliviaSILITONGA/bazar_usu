@@ -32,9 +32,9 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     if (currentUser == null) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: kBg,
-        body: const Center(child: Text('Pengguna belum masuk.')),
+        body: Center(child: Text('Pengguna belum masuk.')),
       );
     }
 
@@ -77,17 +77,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 builder: (context, snapshot) {
                   final data = snapshot.hasData && snapshot.data!.exists
                       ? snapshot.data!.data() as Map<String, dynamic>
-                      : {};
+                      : <String, dynamic>{};
 
-                  // Mengambil email dari auth atau database
                   final email =
-                      currentUser!.email ??
-                      data['email'] ??
-                      'email@students.usu.ac.id';
-                  final isEmailVerified = currentUser!.emailVerified;
+                      (currentUser!.email ??
+                              data['email'] ??
+                              'email@students.usu.ac.id')
+                          .toString();
 
-                  // Mengambil nomor telepon dari field 'telepon' sesuai database Firestore kamu
-                  final telepon = data['telepon'] ?? '+62 8xx-xxxx-xxxx';
+                  final telepon =
+                      (data['telepon'] ?? data['noHp'] ?? '+62 8xx-xxxx-xxxx')
+                          .toString();
 
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
@@ -115,17 +115,12 @@ class _SettingsPageState extends State<SettingsPage> {
                               indent: 58,
                               color: kDarkGreen.withValues(alpha: 0.08),
                             ),
-                            _VerificationStatusTile(
-                              label: 'Email',
-                              value: email,
-                              isVerified: isEmailVerified,
-                            ),
+                            _EmailInfoTile(value: email),
                             Divider(
                               height: 1,
                               indent: 58,
                               color: kDarkGreen.withValues(alpha: 0.08),
                             ),
-                            // Tile khusus Nomor Ponsel tanpa badge status verifikasi
                             _PhoneProfileTile(value: telepon),
                           ],
                         ),
@@ -226,16 +221,10 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-// ==================== STATUS VERIFIKASI (EMAIL) ====================
-class _VerificationStatusTile extends StatelessWidget {
-  final String label;
+// ==================== TILE EMAIL (TANPA BADGE VERIFIKASI) ====================
+class _EmailInfoTile extends StatelessWidget {
   final String value;
-  final bool isVerified;
-  const _VerificationStatusTile({
-    required this.label,
-    required this.value,
-    required this.isVerified,
-  });
+  const _EmailInfoTile({required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -261,9 +250,9 @@ class _VerificationStatusTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                const Text(
+                  'Email',
+                  style: TextStyle(fontSize: 11.5, color: Colors.black54),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -277,45 +266,13 @@ class _VerificationStatusTile extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: isVerified
-                  ? const Color(0xFF34A853).withValues(alpha: 0.12)
-                  : const Color(0xFFE09A2E).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isVerified ? Icons.check_circle : Icons.error_outline,
-                  size: 12,
-                  color: isVerified
-                      ? const Color(0xFF34A853)
-                      : const Color(0xFFE09A2E),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  isVerified ? 'Terverifikasi' : 'Belum Verifikasi',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isVerified
-                        ? const Color(0xFF34A853)
-                        : const Color(0xFFE09A2E),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-// ==================== TILE NOMOR PONSEL (Mengambil dari database profil) ====================
+// ==================== TILE NOMOR PONSEL ====================
 class _PhoneProfileTile extends StatelessWidget {
   final String value;
   const _PhoneProfileTile({required this.value});
