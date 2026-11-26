@@ -74,17 +74,17 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
                           return Center(
-                            child: Text('Gagal memuat data toko.\n${snapshot.error}',
-                                textAlign: TextAlign.center),
+                            child: Text(
+                              'Gagal memuat data toko.\n${snapshot.error}',
+                              textAlign: TextAlign.center,
+                            ),
                           );
                         }
                         if (snapshot.connectionState ==
                                 ConnectionState.waiting &&
                             !snapshot.hasData) {
                           return const Center(
-                            child: CircularProgressIndicator(
-                              color: kDarkGreen,
-                            ),
+                            child: CircularProgressIndicator(color: kDarkGreen),
                           );
                         }
 
@@ -95,6 +95,14 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                             (data?['kategori'] as String?)?.trim() ?? '';
                         final deskripsi =
                             (data?['deskripsi'] as String?)?.trim() ?? '';
+                        final alamatToko =
+                            (data?['alamatToko'] ??
+                                    data?['alamat'] ??
+                                    data?['address'] ??
+                                    data?['lokasiBazar'] ??
+                                    '')
+                                .toString()
+                                .trim();
                         final photoBytes = _decodePhoto(
                           data?['fotoBase64'] as String?,
                         );
@@ -121,8 +129,9 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                                       shape: BoxShape.circle,
                                       color: kLightGreen,
                                       border: Border.all(
-                                        color:
-                                            kDarkGreen.withValues(alpha: 0.3),
+                                        color: kDarkGreen.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                       image: photoBytes != null
                                           ? DecorationImage(
@@ -168,13 +177,15 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                                 ),
                                 const SizedBox(height: 10),
                                 if (deskripsi.isNotEmpty)
-                                  Text(
-                                    deskripsi,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black54,
-                                      height: 1.4,
+                                  Center(
+                                    child: Text(
+                                      deskripsi,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black54,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   )
                                 else
@@ -183,12 +194,72 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                                       'Belum ada deskripsi toko.',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color:
-                                            kDarkGreen.withValues(alpha: 0.4),
+                                        color: kDarkGreen.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
                                   ),
+                                const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: kBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: kDarkGreen.withValues(alpha: 0.1),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        size: 18,
+                                        color: kDarkGreen,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Alamat Toko / Lokasi Bazar',
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: kDarkGreen.withValues(
+                                                  alpha: 0.7,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              alamatToko.isNotEmpty
+                                                  ? alamatToko
+                                                  : 'Belum diatur',
+                                              style: TextStyle(
+                                                fontSize: 12.5,
+                                                color: alamatToko.isNotEmpty
+                                                    ? kDarkGreen
+                                                    : kDarkGreen.withValues(
+                                                        alpha: 0.45,
+                                                      ),
+                                                fontStyle: alamatToko.isNotEmpty
+                                                    ? FontStyle.normal
+                                                    : FontStyle.italic,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                                 const SizedBox(height: 20),
                                 Center(
                                   child: OutlinedButton(
@@ -204,8 +275,9 @@ class _SellerProfileViewPageState extends State<SellerProfileViewPage> {
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: kDarkGreen,
                                       side: BorderSide(
-                                        color:
-                                            kDarkGreen.withValues(alpha: 0.3),
+                                        color: kDarkGreen.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(24),

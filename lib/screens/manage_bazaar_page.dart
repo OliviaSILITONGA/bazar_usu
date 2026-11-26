@@ -14,10 +14,28 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  static const List<String> _usuFaculties = [
+    'Fakultas Kedokteran (FK)',
+    'Fakultas Hukum (FH)',
+    'Fakultas Pertanian (FP)',
+    'Fakultas Teknik (FT)',
+    'Fakultas Ekonomi dan Bisnis (FEB)',
+    'Fakultas Kedokteran Gigi (FKG)',
+    'Fakultas Ilmu Budaya (FIB)',
+    'Fakultas Matematika dan Ilmu Pengetahuan Alam (FMIPA)',
+    'Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)',
+    'Fakultas Kesehatan Masyarakat (FKM)',
+    'Fakultas Psikologi (FSI)',
+    'Fakultas Farmasi (FF)',
+    'Fakultas Keperawatan (FKep)',
+    'Fakultas Ilmu Komputer dan Teknologi Informasi (Fasilkom-TI)',
+    'Fakultas Kehutanan',
+    'Fakultas Vokasi',
+  ];
+
   @override
   void initState() {
     super.initState();
-    // 3 Tab: Daftar Bazar, Jenis Bazar, Lokasi Lapak
     _tabController = TabController(length: 3, vsync: this);
   }
 
@@ -77,95 +95,204 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
 
   // Dialog Tambah / Edit Lokasi Lapak Bazar (Untuk Tab ke-3)
   void _showAddEditSpotDialog({DocumentSnapshot? doc}) {
-    final nameController = TextEditingController(
-      text: doc != null ? doc['nama'] : '',
+    final docData = doc?.data() as Map<String, dynamic>?;
+
+    String? selectedFaculty;
+    final existingFaculty = (docData?['fakultas'] ?? '').toString().trim();
+    if (_usuFaculties.contains(existingFaculty)) {
+      selectedFaculty = existingFaculty;
+    } else if (docData != null) {
+      final namaLama = (docData['nama'] ?? '').toString().trim();
+      for (final f in _usuFaculties) {
+        if (namaLama.contains(f) ||
+            existingFaculty.toLowerCase() == f.toLowerCase()) {
+          selectedFaculty = f;
+          break;
+        }
+      }
+    }
+
+    final departmentController = TextEditingController(
+      text: (docData?['jurusan'] ?? docData?['prodi'] ?? '').toString(),
     );
     final locationController = TextEditingController(
-      text: doc != null ? doc['lokasi'] : '',
+      text: (docData?['lokasi'] ?? docData?['letak'] ?? '').toString(),
     );
     final capacityController = TextEditingController(
-      text: doc != null ? doc['kapasitas'].toString() : '',
+      text: docData != null ? (docData['kapasitas'] ?? '').toString() : '',
     );
+
+    String? errorText;
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(
-            doc == null ? 'Tambah Lokasi Lapak Baru' : 'Edit Lokasi Lapak',
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Lokasi / Fakultas',
-                  hintText: 'Contoh: FEB, Fasilkom-TI, Pendopo USU',
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                doc == null ? 'Tambah Lokasi Lapak Baru' : 'Edit Lokasi Lapak',
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedFaculty,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Pilih Fakultas',
+                        hintText: 'Pilih fakultas USU',
+                      ),
+                      items: _usuFaculties
+                          .map(
+                            (faculty) => DropdownMenuItem<String>(
+                              value: faculty,
+                              child: Text(
+                                faculty,
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedFaculty = value;
+                          errorText = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: departmentController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Jurusan / Program Studi',
+                        hintText: 'Contoh: Ilmu Komputer / Teknik Elektro',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: locationController,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Letak / Detail Patokan Tempat',
+                        hintText: 'Contoh: Gedung D Lt. 1 / Selasar Depan',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: capacityController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Kapasitas Maksimal Bazar',
+                        hintText: 'Contoh: 10',
+                      ),
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: locationController,
-                decoration: const InputDecoration(
-                  labelText: 'Detail Patokan Tempat',
-                  hintText: 'Contoh: Pelataran Parkiran FEB',
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: capacityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Kapasitas Maksimal Bazar',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: kGreen),
-              onPressed: () async {
-                if (nameController.text.isNotEmpty &&
-                    capacityController.text.isNotEmpty) {
-                  final kapasitas = int.tryParse(capacityController.text) ?? 10;
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: kGreen),
+                  onPressed: () async {
+                    final jurusan = departmentController.text.trim();
+                    final letak = locationController.text.trim();
+                    final kapasitasText = capacityController.text.trim();
 
-                  if (doc == null) {
-                    await FirebaseFirestore.instance
-                        .collection('bazaar_spots')
-                        .add({
-                          'nama': nameController.text.trim(),
-                          'lokasi': locationController.text.trim(),
-                          'kapasitas': kapasitas,
-                          'createdAt': FieldValue.serverTimestamp(),
-                        });
-                  } else {
-                    await FirebaseFirestore.instance
-                        .collection('bazaar_spots')
-                        .doc(doc.id)
-                        .update({
-                          'nama': nameController.text.trim(),
-                          'lokasi': locationController.text.trim(),
-                          'kapasitas': kapasitas,
-                        });
-                  }
-                  if (!context.mounted) return;
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text(
-                'Simpan',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
+                    if (selectedFaculty == null || selectedFaculty!.isEmpty) {
+                      setDialogState(() {
+                        errorText = 'Silakan pilih fakultas terlebih dahulu.';
+                      });
+                      return;
+                    }
+                    if (jurusan.isEmpty || letak.isEmpty) {
+                      setDialogState(() {
+                        errorText = 'Jurusan dan letak lokasi wajib diisi.';
+                      });
+                      return;
+                    }
+
+                    final kapasitas = int.tryParse(kapasitasText) ?? 10;
+                    final namaGabungan = '$selectedFaculty - $jurusan';
+
+                    final payload = <String, dynamic>{
+                      'nama': namaGabungan,
+                      'fakultas': selectedFaculty,
+                      'jurusan': jurusan,
+                      'lokasi': letak,
+                      'letak': letak,
+                      'kapasitas': kapasitas,
+                    };
+
+                    if (doc == null) {
+                      await FirebaseFirestore.instance
+                          .collection('bazaar_spots')
+                          .add({
+                            ...payload,
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+                    } else {
+                      await FirebaseFirestore.instance
+                          .collection('bazaar_spots')
+                          .doc(doc.id)
+                          .update({
+                            ...payload,
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          });
+                    }
+
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Simpan',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  String _formatTenantLocation(Map<String, dynamic> data) {
+    final alamatToko =
+        (data['alamatToko'] ??
+                data['lokasiBazar'] ??
+                data['alamat'] ??
+                data['address'] ??
+                '')
+            .toString()
+            .trim();
+    if (alamatToko.isNotEmpty) return alamatToko;
+
+    final lokasi = (data['lokasi'] ?? '').toString().trim();
+    final fakultas = (data['fakultas'] ?? '').toString().trim();
+    if (lokasi.isNotEmpty && fakultas.isNotEmpty) {
+      return '$fakultas - $lokasi';
+    }
+    if (lokasi.isNotEmpty) return lokasi;
+    if (fakultas.isNotEmpty) return fakultas;
+    return '';
   }
 
   @override
@@ -227,12 +354,12 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                   final tenantId = docs[index].id;
 
                   final namaBazar =
-                      data['storeName'] ??
-                      data['namaToko'] ??
-                      data['nama'] ??
-                      'Bazar Tanpa Nama';
+                      (data['storeName'] ??
+                              data['namaToko'] ??
+                              data['nama'] ??
+                              'Bazar Tanpa Nama')
+                          .toString();
 
-                  // Perbaikan pencarian nama pemilik dengan memeriksa berbagai kemungkinan nama field
                   final pemilikLangsung =
                       data['namaPemilik'] ??
                       data['ownerName'] ??
@@ -240,8 +367,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                       data['owner'] ??
                       data['nama'];
 
-                  final lokasi =
-                      data['lokasi'] ?? data['fakultas'] ?? 'Area USU';
+                  final lokasi = _formatTenantLocation(data);
                   final status = data['status'] ?? 'pending';
                   final isApproved = status == 'approved';
 
@@ -261,7 +387,6 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                             isApproved,
                           )
                         : FutureBuilder<DocumentSnapshot>(
-                            // Jika data pemilik tidak ada langsung di tenant, ambil dari dokumen 'users' berdasarkan ID tenant/UID
                             future: FirebaseFirestore.instance
                                 .collection('users')
                                 .doc(tenantId)
@@ -274,10 +399,11 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                                     userSnapshot.data!.data()
                                         as Map<String, dynamic>?;
                                 pemilikNama =
-                                    userData?['nama'] ??
-                                    userData?['name'] ??
-                                    userData?['email'] ??
-                                    '-';
+                                    (userData?['nama'] ??
+                                            userData?['name'] ??
+                                            userData?['email'] ??
+                                            '-')
+                                        .toString();
                               }
                               return _buildTenantTile(
                                 namaBazar,
@@ -360,7 +486,8 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                             itemBuilder: (context, index) {
                               final doc = catDocs[index];
                               final data = doc.data() as Map<String, dynamic>;
-                              final namaKat = data['nama'] ?? doc.id;
+                              final namaKat = (data['nama'] ?? doc.id)
+                                  .toString();
 
                               final jumlahToko = allTenants.where((tDoc) {
                                 final tData =
@@ -371,7 +498,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                                             '')
                                         .toString()
                                         .toLowerCase();
-                                return tKat == namaKat.toString().toLowerCase();
+                                return tKat == namaKat.toLowerCase();
                               }).length;
 
                               return Card(
@@ -434,7 +561,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
           ),
 
           // =================================================================
-          // TAB 3: LOKASI LAPAK BAZAR (Tempat/Fakultas yang bisa ditambah)
+          // TAB 3: LOKASI LAPAK BAZAR (Fakultas -> Jurusan & Letak)
           // =================================================================
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -482,8 +609,23 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                         itemBuilder: (context, index) {
                           final doc = spotDocs[index];
                           final data = doc.data() as Map<String, dynamic>;
-                          final namaTempat = data['nama'] ?? 'Tanpa Nama';
-                          final detailLokasi = data['lokasi'] ?? '-';
+                          final fakultas = (data['fakultas'] ?? '')
+                              .toString()
+                              .trim();
+                          final jurusan = (data['jurusan'] ?? '')
+                              .toString()
+                              .trim();
+                          final namaTempat =
+                              (data['nama'] ??
+                                      (fakultas.isNotEmpty && jurusan.isNotEmpty
+                                          ? '$fakultas - $jurusan'
+                                          : (fakultas.isNotEmpty
+                                                ? fakultas
+                                                : 'Tanpa Nama')))
+                                  .toString();
+                          final detailLokasi =
+                              (data['lokasi'] ?? data['letak'] ?? '-')
+                                  .toString();
                           final kapasitas = data['kapasitas'] ?? 10;
 
                           return Card(
@@ -504,7 +646,7 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
                                 ),
                               ),
                               subtitle: Text(
-                                'Detail: $detailLokasi\nKapasitas: $kapasitas Lapak',
+                                '${jurusan.isNotEmpty ? 'Jurusan: $jurusan\n' : ''}Letak: $detailLokasi\nKapasitas: $kapasitas Lapak',
                                 style: const TextStyle(fontSize: 12),
                               ),
                               isThreeLine: true,
@@ -550,7 +692,6 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
     );
   }
 
-  // Widget pembantu untuk menampilkan list tile tenant di tab Daftar Bazar
   Widget _buildTenantTile(
     String namaBazar,
     String pemilik,
@@ -572,7 +713,9 @@ class _ManageBazaarPageState extends State<ManageBazaarPage>
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
-        'Pemilik: $pemilik\nLokasi: $lokasi',
+        lokasi.isNotEmpty
+            ? 'Pemilik: $pemilik\nLokasi: $lokasi'
+            : 'Pemilik: $pemilik',
         style: const TextStyle(fontSize: 12),
       ),
       trailing: Container(

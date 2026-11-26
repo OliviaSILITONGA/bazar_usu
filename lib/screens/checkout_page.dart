@@ -22,6 +22,7 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   int _selectedPayment = 0;
+  int _deliveryMode = 0; // 0 = Diantar, 1 = Ambil Sendiri
   bool _isSubmitting = false;
   AddressData? _selectedAddress;
   String? _selectedAddressId;
@@ -37,20 +38,45 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _PaymentOption(icon: Icons.account_balance_outlined, label: 'Bank Lain'),
   ];
 
-  bool _isAroundUsu(AddressData address) {
+  bool get _isSelfPickup => _deliveryMode == 1;
+
+  bool _isWithinFreeDeliveryArea(AddressData address) {
     final text = '${address.label} ${address.fullAddress}'.toLowerCase();
+
+    // Cek khusus Jalan Pembangunan: hanya gratis jika mengarah ke Pintu 1 s.d. Pintu 4 USU
+    final mentionsPembangunan = RegExp(r'\bpembangunan\b').hasMatch(text);
+    if (mentionsPembangunan) {
+      final hasGate1To4 = RegExp(
+        r'(pintu\s*(1|2|3|4|satu|dua|tiga|empat)|gate\s*(1|2|3|4))',
+      ).hasMatch(text);
+      final hasBeyondGate4 = RegExp(
+        r'(pintu\s*(5|6|7|8|9|lima|enam|tujuh|delapan|sembilan)|gate\s*(5|6|7|8|9)|setia\s*budi)',
+      ).hasMatch(text);
+
+      if (hasBeyondGate4 && !hasGate1To4) {
+        return false;
+      }
+      return hasGate1To4;
+    }
+
     return RegExp(
-      r'(\busu\b|universitas sumatera utara|pembangunan|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|setia budi|tanjung sari|usu\s*kuala)',
+      r'(\busu\b|universitas sumatera utara|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|tanjung sari|usu\s*kuala)',
     ).hasMatch(text);
   }
 
   int _calculateShippingFee(AddressData address) {
-    return _isAroundUsu(address) ? 0 : _outsideUsuShippingFee;
+    if (_isSelfPickup) return 0;
+    return _isWithinFreeDeliveryArea(address) ? 0 : _outsideUsuShippingFee;
   }
 
   String _shippingLabel(AddressData address) {
+    if (_isSelfPickup) {
+      return 'Ambil Sendiri di Lapak • Gratis Ongkir';
+    }
     final fee = _calculateShippingFee(address);
-    return fee == 0 ? 'Gratis Ongkir (Area USU)' : 'Ongkir Rp3.000 (Luar USU)';
+    return fee == 0
+        ? 'Gratis Ongkir (Area USU s.d. Pintu 4)'
+        : 'Ongkir Rp3.000 (Di Luar Area USU)';
   }
 
   String _formatPrice(int price) {
@@ -114,20 +140,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
         itemsByStore.putIfAbsent(item.storeName, () => []).add(item);
       }
 
-      // Ambil daftar tenants sekali untuk mencocokkan namaToko -> sellerId
+      // Ambil daftar tenants sekali untuk mencocokkan namaToko -> sellerId & lokasi toko
       final tenantsSnap = await firestore.collection('tenants').get();
       final Map<String, String> storeToSellerId = {};
+      final Map<String, String> storeToLocation = {};
       for (final doc in tenantsSnap.docs) {
         final tData = doc.data();
         final namaToko = (tData['namaToko'] ?? tData['storeName'] ?? '')
             .toString()
             .trim();
         if (namaToko.isNotEmpty) {
-          storeToSellerId[namaToko.toLowerCase()] = doc.id;
+          final key = namaToko.toLowerCase();
+          storeToSellerId[key] = doc.id;
+          final loc =
+              (tData['alamatToko'] ??
+                      tData['lokasiBazar'] ??
+                      tData['lokasi'] ??
+                      tData['alamat'] ??
+                      '')
+                  .toString()
+                  .trim();
+          if (loc.isNotEmpty) {
+            storeToLocation[key] = loc;
+          }
         }
       }
 
       final paymentMethod = _payments[_selectedPayment].label;
+      final deliveryMethodText = _isSelfPickup ? 'Ambil Sendiri' : 'Diantar';
       final now = DateTime.now();
       final storeEntries = itemsByStore.entries.toList();
 
@@ -136,7 +176,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         final entry = storeEntries[i];
         final storeName = entry.key;
         final storeItems = entry.value;
-        final sellerId = storeToSellerId[storeName.toLowerCase()] ?? '';
+        final key = storeName.toLowerCase();
+        final sellerId = storeToSellerId[key] ?? '';
+        final storePickupLocation = storeToLocation[key] ?? '';
         final storeSubtotal = storeItems.fold<int>(
           0,
           (sum, e) => sum + (e.price * e.quantity),
@@ -149,8 +191,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'userId': user.uid,
           'buyerName': activeAddress.recipientName,
           'buyerPhone': activeAddress.phone,
-          'buyerAddress': activeAddress.fullAddress,
-          'addressLabel': activeAddress.label,
+          'buyerAddress': _isSelfPickup
+              ? 'Ambil Sendiri di Lapak'
+              : activeAddress.fullAddress,
+          'addressLabel': _isSelfPickup ? 'Ambil Sendiri' : activeAddress.label,
+          'deliveryMethod': deliveryMethodText,
+          'pickupLocation': _isSelfPickup ? storePickupLocation : '',
           'shippingFee': storeShipping,
           'sellerId': sellerId,
           'tenantId': sellerId,
@@ -233,6 +279,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final storeNames = widget.items
+        .map((e) => e.storeName.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
 
     return StreamBuilder<DocumentSnapshot>(
       stream: uid.isNotEmpty
@@ -313,15 +364,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           vertical: 12,
                         ),
                         children: [
-                          _AddressCard(
-                            address: activeAddress,
-                            onTap: () => _openAddressPicker(
-                              context,
-                              savedAddresses,
-                              activeAddress,
+                          if (!_isSelfPickup) ...[
+                            _AddressCard(
+                              address: activeAddress,
+                              onTap: () => _openAddressPicker(
+                                context,
+                                savedAddresses,
+                                activeAddress,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 16),
+                          ],
                           const Text(
                             'Produk Dipesan',
                             style: TextStyle(
@@ -341,52 +394,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () => _openAddressPicker(
-                              context,
-                              savedAddresses,
-                              activeAddress,
+                          const Text(
+                            'Metode Pengiriman',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: kDarkGreen,
                             ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: kDarkGreen.withValues(alpha: 0.12),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.local_shipping_outlined,
-                                    size: 18,
-                                    color: kDarkGreen,
+                          ),
+                          const SizedBox(height: 10),
+                          _DeliveryModeCard(
+                            selectedMode: _deliveryMode,
+                            shippingText: shippingText,
+                            storeNames: storeNames,
+                            onSelectMode: (mode) =>
+                                setState(() => _deliveryMode = mode),
+                            onTapShippingInfo: _isSelfPickup
+                                ? null
+                                : () => _openAddressPicker(
+                                    context,
+                                    savedAddresses,
+                                    activeAddress,
                                   ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'Estimasi tiba 1-2 hari • $shippingText',
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        color: kDarkGreen.withValues(
-                                          alpha: 0.8,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    color: kDarkGreen.withValues(alpha: 0.4),
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
                           ),
                           const SizedBox(height: 16),
                           _OrderSummary(
@@ -502,6 +531,228 @@ class _PaymentOption {
   final IconData icon;
   final String label;
   const _PaymentOption({required this.icon, required this.label});
+}
+
+// ==================== PILIHAN DIANTAR / AMBIL SENDIRI ====================
+class _DeliveryModeCard extends StatelessWidget {
+  final int selectedMode; // 0 = Diantar, 1 = Ambil Sendiri
+  final String shippingText;
+  final List<String> storeNames;
+  final ValueChanged<int> onSelectMode;
+  final VoidCallback? onTapShippingInfo;
+
+  const _DeliveryModeCard({
+    required this.selectedMode,
+    required this.shippingText,
+    required this.storeNames,
+    required this.onSelectMode,
+    this.onTapShippingInfo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelfPickup = selectedMode == 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kDarkGreen.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _ModeChoiceButton(
+                    icon: Icons.delivery_dining_outlined,
+                    label: 'Diantar',
+                    selected: !isSelfPickup,
+                    onTap: () => onSelectMode(0),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ModeChoiceButton(
+                    icon: Icons.storefront_outlined,
+                    label: 'Ambil Sendiri',
+                    selected: isSelfPickup,
+                    onTap: () => onSelectMode(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: kDarkGreen.withValues(alpha: 0.08)),
+          InkWell(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(14),
+            ),
+            onTap: onTapShippingInfo,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: isSelfPickup
+                  ? _PickupStoreInfo(storeNames: storeNames)
+                  : Row(
+                      children: [
+                        const Icon(
+                          Icons.local_shipping_outlined,
+                          size: 18,
+                          color: kDarkGreen,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Pengantaran s.d. waktu danus tutup • $shippingText',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: kDarkGreen.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ),
+                        if (onTapShippingInfo != null)
+                          Icon(
+                            Icons.chevron_right,
+                            color: kDarkGreen.withValues(alpha: 0.4),
+                            size: 18,
+                          ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeChoiceButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeChoiceButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? kDarkGreen : kBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? kDarkGreen : kDarkGreen.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: selected ? Colors.white : kDarkGreen),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.bold,
+                color: selected ? Colors.white : kDarkGreen,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickupStoreInfo extends StatelessWidget {
+  final List<String> storeNames;
+  const _PickupStoreInfo({required this.storeNames});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('tenants').snapshots(),
+      builder: (context, snap) {
+        final Map<String, String> storeLocations = {};
+        if (snap.hasData) {
+          for (final doc in snap.data!.docs) {
+            final tData = doc.data() as Map<String, dynamic>;
+            final namaToko = (tData['namaToko'] ?? tData['storeName'] ?? '')
+                .toString()
+                .trim();
+            if (namaToko.isNotEmpty) {
+              final loc =
+                  (tData['alamatToko'] ??
+                          tData['lokasiBazar'] ??
+                          tData['lokasi'] ??
+                          tData['alamat'] ??
+                          '')
+                      .toString()
+                      .trim();
+              storeLocations[namaToko.toLowerCase()] = loc.isNotEmpty
+                  ? loc
+                  : 'Lokasi lapak penjual (Gratis Ongkir)';
+            }
+          }
+        }
+
+        final targets = storeNames.isEmpty ? ['Toko Penjual'] : storeNames;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.storefront_outlined,
+                  size: 18,
+                  color: kDarkGreen,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ambil di lapak s.d. waktu danus tutup • Gratis Ongkir',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: kDarkGreen.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...targets.map((store) {
+              final locText =
+                  storeLocations[store.toLowerCase()] ??
+                  'Lokasi lapak penjual (Gratis Ongkir)';
+              return Padding(
+                padding: const EdgeInsets.only(left: 26, top: 2),
+                child: Text(
+                  '$store: $locText',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: kDarkGreen.withValues(alpha: 0.72),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
 }
 
 // ==================== HEADER ====================
@@ -656,10 +907,26 @@ class _AddressPickerSheet extends StatelessWidget {
         a.fullAddress == b.fullAddress;
   }
 
-  bool _isAroundUsu(AddressData address) {
+  bool _isWithinFreeDeliveryArea(AddressData address) {
     final text = '${address.label} ${address.fullAddress}'.toLowerCase();
+
+    final mentionsPembangunan = RegExp(r'\bpembangunan\b').hasMatch(text);
+    if (mentionsPembangunan) {
+      final hasGate1To4 = RegExp(
+        r'(pintu\s*(1|2|3|4|satu|dua|tiga|empat)|gate\s*(1|2|3|4))',
+      ).hasMatch(text);
+      final hasBeyondGate4 = RegExp(
+        r'(pintu\s*(5|6|7|8|9|lima|enam|tujuh|delapan|sembilan)|gate\s*(5|6|7|8|9)|setia\s*budi)',
+      ).hasMatch(text);
+
+      if (hasBeyondGate4 && !hasGate1To4) {
+        return false;
+      }
+      return hasGate1To4;
+    }
+
     return RegExp(
-      r'(\busu\b|universitas sumatera utara|pembangunan|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|setia budi|tanjung sari|usu\s*kuala)',
+      r'(\busu\b|universitas sumatera utara|padang bulan|dr\.\s*mansyur|jaminginting|jamin ginting|tanjung sari|usu\s*kuala)',
     ).hasMatch(text);
   }
 
@@ -752,7 +1019,7 @@ class _AddressPickerSheet extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final addr = addresses[index];
                     final isSelected = _isSameAddress(addr, activeAddress);
-                    final freeOngkir = _isAroundUsu(addr);
+                    final freeOngkir = _isWithinFreeDeliveryArea(addr);
 
                     return InkWell(
                       borderRadius: BorderRadius.circular(14),

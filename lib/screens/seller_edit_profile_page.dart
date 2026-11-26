@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import '../services/database_service.dart';
 import '../constants.dart';
+import '../services/database_service.dart';
 import '../services/seller_profile_extra_state.dart';
 
 class SellerEditProfilePage extends StatefulWidget {
@@ -20,6 +21,7 @@ class SellerEditProfilePage extends StatefulWidget {
 
 class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
   late final TextEditingController _descriptionController;
+  late final TextEditingController _addressController;
 
   File? _photo; // foto baru (hanya untuk state lokal, tidak dipakai di web)
   Uint8List? _pickedBytes; // foto baru yang baru dipilih (untuk preview)
@@ -36,12 +38,14 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
     super.initState();
     final extra = SellerProfileExtraState.instance.data.value;
     _descriptionController = TextEditingController(text: extra.description);
+    _addressController = TextEditingController();
     _loadTenant();
   }
 
   @override
   void dispose() {
     _descriptionController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -63,13 +67,22 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
           }
         }
 
+        final savedAddress =
+            (data['alamatToko'] ??
+                    data['alamat'] ??
+                    data['address'] ??
+                    data['lokasiBazar'] ??
+                    '')
+                .toString();
+
         setState(() {
           _namaToko = (data['namaToko'] as String?) ?? '-';
           _kategori =
               (data['kategori'] as String?) ??
               (data['category'] as String?) ??
-              '-'; // <-- Tambahkan ini agar kategori terisi
+              '-';
           _descriptionController.text = (data['deskripsi'] as String?) ?? '';
+          _addressController.text = savedAddress;
           _photoBytes = fotoBytes;
         });
       }
@@ -114,13 +127,23 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
       if (user == null) throw 'Sesi login tidak ditemukan';
 
       final deskripsi = _descriptionController.text.trim();
+      final alamatToko = _addressController.text.trim();
 
-      // Simpan deskripsi (+ foto kalau ada yang baru) ke koleksi 'tenants'
+      // Simpan deskripsi (+ foto kalau ada yang baru) lewat DatabaseService
       await DatabaseService().updateTenantData(
         uid: user.uid,
         deskripsi: deskripsi,
         fotoBase64: _newPhotoBase64,
       );
+
+      // Simpan alamat toko / lokasi bazar ke dokumen 'tenants/{uid}' di Firestore
+      await FirebaseFirestore.instance.collection('tenants').doc(user.uid).set({
+        'alamatToko': alamatToko,
+        'alamat': alamatToko,
+        'address': alamatToko,
+        'lokasiBazar': alamatToko,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       // Perbarui state lokal aplikasi
       SellerProfileExtraState.instance.update(
@@ -130,7 +153,15 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
         ),
       );
 
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil & alamat toko berhasil disimpan.'),
+            backgroundColor: kDarkGreen,
+          ),
+        );
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
@@ -144,15 +175,49 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
     }
   }
 
-  // Foto yang ditampilkan: foto baru > foto dari Firestore > kosong.
-  // Pakai bytes (MemoryImage) supaya jalan di semua platform, termasuk web.
   ImageProvider? get _avatarImage {
     if (_pickedBytes != null) return MemoryImage(_pickedBytes!);
     if (_photoBytes != null) return MemoryImage(_photoBytes!);
     return null;
   }
 
-  // Kotak deskripsi: satu TextField saja (tanpa Container pembungkus)
+  Widget _buildAddressField() {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: kDarkGreen.withValues(alpha: 0.15)),
+    );
+
+    return TextField(
+      controller: _addressController,
+      maxLines: 3,
+      minLines: 2,
+      maxLength: 200,
+      textCapitalization: TextCapitalization.sentences,
+      style: const TextStyle(fontSize: 13.5, color: kDarkGreen, height: 1.4),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        hintText: 'Contoh: Gedung Serbaguna USU / Stand Bazar No. 12...',
+        hintStyle: TextStyle(color: kDarkGreen.withValues(alpha: 0.4)),
+        counterStyle: TextStyle(
+          fontSize: 11,
+          color: kDarkGreen.withValues(alpha: 0.5),
+        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: kDarkGreen, width: 1.5),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDescriptionField() {
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
@@ -306,6 +371,20 @@ class _SellerEditProfilePageState extends State<SellerEditProfilePage> {
                             ),
                           ),
                           const SizedBox(height: 18),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              'Alamat Toko / Lokasi Bazar',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: kDarkGreen.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildAddressField(),
+                          const SizedBox(height: 14),
                           Padding(
                             padding: const EdgeInsets.only(left: 4),
                             child: Text(
