@@ -62,11 +62,11 @@ class HelpPage extends StatelessWidget {
                           items: [
                             _FaqItem(
                               'Bagaimana cara mendaftar akun di Bazar USU?',
-                              'Buka halaman Daftar, isi data diri (nama, email kampus, nomor HP), buat kata sandi, lalu verifikasi lewat email/OTP yang dikirim.',
+                              'Buka halaman Daftar, isi data diri (nama, email, NIM, nomor WhatsApp/telepon), buat kata sandi, lalu unggah foto KTM untuk verifikasi status mahasiswa USU.',
                             ),
                             _FaqItem(
                               'Saya lupa kata sandi, bagaimana cara menggantinya?',
-                              'Di halaman Login, tekan "Lupa Kata Sandi", masukkan email terdaftar, lalu ikuti instruksi reset yang dikirim ke email kamu.',
+                              'Di halaman Login, tekan "Lupa Password?", masukkan email terdaftar, lalu ikuti instruksi reset yang dikirim ke email kamu.',
                             ),
                             _FaqItem(
                               'Bagaimana cara jadi penjual (danusan)?',
@@ -96,11 +96,11 @@ class HelpPage extends StatelessWidget {
                           items: [
                             _FaqItem(
                               'Metode pembayaran apa saja yang didukung?',
-                              'QRIS, transfer bank, dan Cash on Delivery (COD) saat ambil/terima pesanan.',
+                              'Dana, transfer bank lain, dan Bayar di Tempat (COD) saat ambil/terima pesanan.',
                             ),
                             _FaqItem(
                               'Bagaimana cara konfirmasi bukti pembayaran?',
-                              'Setelah transfer, unggah bukti bayar di halaman detail pesanan agar penjual bisa memverifikasi.',
+                              'Setelah pembayaran dilakukan, ikuti langkah konfirmasi pada pesanan agar penjual dapat memproses pesananmu.',
                             ),
                           ],
                         ),
@@ -108,16 +108,16 @@ class HelpPage extends StatelessWidget {
                           title: 'Pengambilan / Pengiriman',
                           items: [
                             _FaqItem(
-                              'Di mana titik temu untuk COD?',
-                              'Lokasi titik temu biasanya di area stand penjual di sekitar kampus, tertera di detail toko/pesanan.',
+                              'Di mana titik temu untuk COD atau ambil sendiri?',
+                              'Lokasi pengambilan/titik temu berada di area lapak penjual di sekitar kampus dan tertera pada detail toko/pesanan.',
                             ),
                             _FaqItem(
-                              'Apakah ada pengantaran ke lokasi di dalam kampus?',
-                              'Beberapa penjual menyediakan opsi antar di area kampus dengan biaya tambahan, tergantung kebijakan masing-masing toko.',
+                              'Apakah ada pengantaran ke lokasi di sekitar kampus?',
+                              'Tersedia opsi Diantar (gratis di area USU hingga batas Jl. Pembangunan Pintu 4 dan berlaku biaya Rp3.000 di luar area tersebut) serta Ambil Sendiri (gratis ongkir), berlaku s.d. waktu danus tutup.',
                             ),
                             _FaqItem(
                               'Jam berapa stand biasanya buka?',
-                              'Jam operasional berbeda tiap penjual, bisa dicek di halaman profil toko masing-masing.',
+                              'Jam operasional berbeda tiap penjual dan berlaku s.d. waktu danus tutup; detailnya bisa dicek pada toko/pesanan.',
                             ),
                           ],
                         ),
@@ -133,7 +133,7 @@ class HelpPage extends StatelessWidget {
                         _SubHeading('Panduan Pembeli'),
                         const _NumberedItem(
                           1,
-                          'Buka aplikasi Bazar USU. Cek alamat antar di bagian atas ("Antar ke") sebelum pesan.',
+                          'Buka aplikasi Bazar USU. Cek alamat antar atau pilih mode Diantar / Ambil Sendiri sebelum pesan.',
                         ),
                         const _NumberedItem(
                           2,
@@ -149,7 +149,7 @@ class HelpPage extends StatelessWidget {
                         ),
                         const _NumberedItem(
                           5,
-                          'Pantau status pesanan sampai makanan diantar/siap diambil.',
+                          'Pantau status pesanan sampai makanan diantar atau siap diambil s.d. waktu danus tutup.',
                         ),
                         const SizedBox(height: 16),
                         _SubHeading('Panduan Penjual'),
@@ -219,7 +219,7 @@ class HelpPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
 
-                    // ========== 4. KEBIJAKAN & KETENTUAN ==========
+                    // ========== 4. KEBIJAKAN & KETENTUAN PLATFORM ==========
                     _SectionCard(
                       icon: Icons.gavel_outlined,
                       title: 'Kebijakan & Ketentuan Platform',
@@ -227,7 +227,7 @@ class HelpPage extends StatelessWidget {
                         _SubHeading('Syarat & Ketentuan (T&C)'),
                         SizedBox(height: 4),
                         _BulletItem(
-                          'Setiap pengguna wajib mendaftar menggunakan data yang valid dan email aktif.',
+                          'Setiap pengguna wajib mendaftar menggunakan data yang valid, email aktif, serta menjalani verifikasi KTM.',
                         ),
                         _BulletItem(
                           'Penjual bertanggung jawab atas kebenaran informasi produk yang diunggah (harga, stok, foto).',
@@ -276,6 +276,47 @@ class HelpPage extends StatelessWidget {
                             fontStyle: FontStyle.italic,
                             color: Colors.black45,
                           ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ========== 5. KEBIJAKAN PRIVASI & KEAMANAN ==========
+                    _SectionCard(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Kebijakan Privasi & Keamanan',
+                      children: const [
+                        _SubHeading('Data yang Dikumpulkan & Digunakan'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Kami mengumpulkan data akun dan transaksi seperti nama, NIM, email, nomor WhatsApp/telepon, foto KTM untuk verifikasi mahasiswa USU, alamat pengiriman (saat memilih Diantar), serta riwayat pesanan.',
+                        ),
+                        _BulletItem(
+                          'Data digunakan untuk memverifikasi identitas pengguna, memproses pesanan/pengantaran/pengambilan danus, serta mendukung layanan pelanggan.',
+                        ),
+                        SizedBox(height: 14),
+                        _SubHeading('Kerahasiaan & Pembatasan Akses'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Data pribadi dan foto KTM tidak dibagikan secara publik; informasi pengiriman hanya diakses sesuai kebutuhan transaksi/lapak terkait.',
+                        ),
+                        _BulletItem(
+                          'Akses data dan fitur dibatasi berdasarkan autentikasi akun serta peran/kepemilikan data pengguna.',
+                        ),
+                        SizedBox(height: 14),
+                        _SubHeading('Keamanan Komunikasi & Penyimpanan'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Komunikasi data antara aplikasi dan layanan backend dilindungi koneksi terenkripsi (HTTPS/TLS).',
+                        ),
+                        _BulletItem(
+                          'Keamanan data juga bergantung pada kehati-hatian pengguna dalam menjaga kerahasiaan kata sandi dan keluar (Logout) saat memakai perangkat bersama.',
+                        ),
+                        SizedBox(height: 14),
+                        _SubHeading('Hak & Kontrol Pengguna'),
+                        SizedBox(height: 4),
+                        _BulletItem(
+                          'Pengguna dapat memperbarui informasi profil, mengelola alamat tersimpan, memilih Ambil Sendiri agar alamat antar tidak dipakai, serta menghubungi admin bila menemukan kendala privasi atau keamanan.',
                         ),
                       ],
                     ),

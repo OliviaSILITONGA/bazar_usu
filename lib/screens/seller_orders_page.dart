@@ -16,7 +16,7 @@ class SellerOrdersPage extends StatelessWidget {
 
   String _sellerStatusLabel(String rawStatus) {
     final s = rawStatus.toLowerCase();
-    if (s == 'perlu dibayar' || s == 'baru') return 'Baru';
+    if (s == 'pending' || s == 'baru' || s == 'perlu dibayar') return 'Baru';
     if (s == 'akan diterima' || s == 'diproses') return 'Diproses';
     if (s == 'untuk diulas' || s == 'pesanan selesai' || s == 'selesai') {
       return 'Selesai';
@@ -156,8 +156,7 @@ class SellerOrdersPage extends StatelessWidget {
                         .toString();
                 final buyerAddress = (data['buyerAddress'] ?? '').toString();
                 final paymentMethod = (data['paymentMethod'] ?? '').toString();
-                final rawStatus = (data['status'] ?? 'Perlu dibayar')
-                    .toString();
+                final rawStatus = (data['status'] ?? 'Pending').toString();
                 final statusLabel = _sellerStatusLabel(rawStatus);
                 final statusColor = _statusColor(statusLabel);
 

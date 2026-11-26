@@ -19,7 +19,6 @@ class _OrdersPageState extends State<OrdersPage> {
   int _selectedTab = 0;
 
   static const List<String> _tabs = [
-    'Perlu dibayar',
     'Akan Diterima',
     'Untuk Diulas',
     'Pengembalian',
@@ -72,8 +71,21 @@ class _OrdersPageState extends State<OrdersPage> {
                   final currentTab = _tabs[_selectedTab];
 
                   final filtered = allOrders.where((o) {
-                    final matchesTab =
-                        o.status.toLowerCase() == currentTab.toLowerCase();
+                    final s = o.status.toLowerCase();
+                    final bool matchesTab;
+                    if (currentTab == 'Akan Diterima') {
+                      // Mencakup pesanan yang masih menunggu konfirmasi penjual ('pending' / 'baru' / 'perlu dibayar')
+                      // maupun yang sudah diterima penjual ('akan diterima' / 'diproses')
+                      matchesTab =
+                          s == 'akan diterima' ||
+                          s == 'pending' ||
+                          s == 'baru' ||
+                          s == 'diproses' ||
+                          s == 'perlu dibayar';
+                    } else {
+                      matchesTab = s == currentTab.toLowerCase();
+                    }
+
                     if (!matchesTab) return false;
 
                     if (query.isEmpty) return true;
@@ -364,6 +376,12 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusLower = order.status.toLowerCase();
     final isRejected = statusLower == 'ditolak';
+    final isPending =
+        statusLower == 'pending' ||
+        statusLower == 'baru' ||
+        statusLower == 'perlu dibayar';
+    final isAccepted =
+        statusLower == 'akan diterima' || statusLower == 'diproses';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -382,33 +400,53 @@ class _OrderCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              isRejected
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Ditolak Penjual',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.redAccent,
-                        ),
-                      ),
-                    )
-                  : Text(
-                      order.status,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: kDarkGreen,
-                      ),
+              if (isRejected)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Ditolak Penjual',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
                     ),
+                  ),
+                )
+              else if (isPending)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Menunggu Konfirmasi Penjual',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  isAccepted ? 'Akan Diterima' : order.status,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: kDarkGreen,
+                  ),
+                ),
               Text(
                 '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
                 style: TextStyle(
@@ -506,8 +544,33 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else if (statusLower == 'perlu dibayar' ||
-              statusLower == 'akan diterima' ||
+          ] else if (isPending) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Text(
+                  'Pending · Menunggu Penjual',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            ),
+          ] else if (isAccepted ||
               statusLower == 'untuk diulas' ||
               statusLower == 'pengembalian') ...[
             const SizedBox(height: 12),
@@ -617,13 +680,7 @@ class _OrderCard extends StatelessWidget {
                       ),
                     )
                   : ElevatedButton(
-                      onPressed: () {
-                        if (statusLower == 'perlu dibayar') {
-                          _advanceStatus(context, 'Akan Diterima');
-                        } else if (statusLower == 'akan diterima') {
-                          _advanceStatus(context, 'Untuk Diulas');
-                        }
-                      },
+                      onPressed: () => _advanceStatus(context, 'Untuk Diulas'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kDarkGreen,
                         foregroundColor: Colors.white,
@@ -637,11 +694,9 @@ class _OrderCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
-                      child: Text(
-                        statusLower == 'perlu dibayar'
-                            ? 'Bayar Sekarang'
-                            : 'Pesanan Diterima',
-                        style: const TextStyle(
+                      child: const Text(
+                        'Pesanan Diterima',
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
