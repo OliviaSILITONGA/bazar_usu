@@ -164,7 +164,7 @@ class ChatService {
     required String buyerId,
     required String sellerKey,
   }) {
-    return 'buyer_' + _slug(buyerId) + '__seller_' + _slug(sellerKey);
+    return 'buyer_${_slug(buyerId)}__seller_${_slug(sellerKey)}';
   }
 
   Future<String> resolveCurrentUserDisplayName() async {
@@ -225,7 +225,7 @@ class ChatService {
       }
     } catch (_) {}
 
-    return 'seller_' + _slug(cleanStore);
+    return 'seller_${_slug(cleanStore)}';
   }
 
   /// Mengambil nama toko (`namaToko` / `storeName`) dari koleksi `tenants` berdasarkan UID penjual.
@@ -299,7 +299,7 @@ class ChatService {
           } catch (_) {}
         }
 
-        storeNameByKey['seller_' + _slug(store)] = store;
+        storeNameByKey['seller_${_slug(store)}'] = store;
         storeNameByKey[store.toLowerCase()] = store;
       }
     } catch (_) {}
@@ -376,7 +376,7 @@ class ChatService {
         for (final key in [tData['namaToko'], tData['storeName']]) {
           final raw = (key ?? '').toString().trim();
           if (raw.isNotEmpty) {
-            storeKeys.add('seller_' + _slug(raw));
+            storeKeys.add('seller_${_slug(raw)}');
           }
         }
       }
@@ -391,7 +391,7 @@ class ChatService {
         for (final key in [tData['namaToko'], tData['storeName']]) {
           final raw = (key ?? '').toString().trim();
           if (raw.isNotEmpty) {
-            storeKeys.add('seller_' + _slug(raw));
+            storeKeys.add('seller_${_slug(raw)}');
           }
         }
       }
@@ -408,7 +408,7 @@ class ChatService {
         ]) {
           final raw = (key ?? '').toString().trim();
           if (raw.isNotEmpty) {
-            storeKeys.add('seller_' + _slug(raw));
+            storeKeys.add('seller_${_slug(raw)}');
           }
         }
       }
@@ -606,14 +606,14 @@ class ChatService {
   String formatRelativeTime(DateTime t) {
     final d = DateTime.now().difference(t);
     if (d.inMinutes < 1) return 'baru saja';
-    if (d.inMinutes < 60) return d.inMinutes.toString() + 'mnt';
-    if (d.inHours < 24) return d.inHours.toString() + 'jam';
-    return d.inDays.toString() + 'hari';
+    if (d.inMinutes < 60) return '${d.inMinutes}mnt';
+    if (d.inHours < 24) return '${d.inHours}jam';
+    return '${d.inDays}hari';
   }
 
   String formatClock(DateTime t) {
     final h = t.hour.toString().padLeft(2, '0');
     final m = t.minute.toString().padLeft(2, '0');
-    return h + ':' + m;
+    return '$h:$m';
   }
 }

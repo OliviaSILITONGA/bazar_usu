@@ -142,7 +142,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim pesan: ' + e.toString()),
+            content: Text('Gagal mengirim pesan: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -209,7 +209,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         return Center(
                           child: Text(
                             q.isEmpty
-                                ? 'Mulai percakapan dengan ' + _displayStoreName
+                                ? 'Mulai percakapan dengan $_displayStoreName'
                                 : 'Pesan tidak ditemukan',
                             style: TextStyle(
                               fontSize: 13,

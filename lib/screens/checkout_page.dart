@@ -1315,11 +1315,7 @@ class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool bold;
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
+  const _SummaryRow({required this.label, required this.value}) : bold = false;
 
   @override
   Widget build(BuildContext context) {
